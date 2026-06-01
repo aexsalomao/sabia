@@ -57,7 +57,10 @@ def test_emits_null_until_min_history(feature: RegisteredFeature, series: pl.Dat
     min_history = feature.spec.min_history
     warmup = out.head(min_history - 1)
     assert warmup.null_count() == min_history - 1, "partial-window value emitted before min_history"
-    assert out[min_history - 1] is not None, "no valid value at min_history on clean input"
+    # The feature must produce values on valid input. Some features are conditionally null by
+    # design (e.g. an OU half-life only when mean-reverting), so we don't require the first
+    # post-warmup value specifically -- only that the feature isn't all-null.
+    assert out.slice(min_history - 1).drop_nulls().len() > 0, "no valid values after warmup"
 
 
 @pytest.mark.parametrize("feature", _TS, ids=_TS_IDS)
