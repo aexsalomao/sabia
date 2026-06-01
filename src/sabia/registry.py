@@ -29,6 +29,8 @@ _FAMILY_MODULES: tuple[str, ...] = (
     "sabia.returns",
     "sabia.volatility",
     "sabia.momentum",
+    "sabia.trend",
+    "sabia.volume",
 )
 
 _NAME_RE = re.compile(NAME_PATTERN)
