@@ -6,6 +6,8 @@ All notable changes to `sabia` are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-06-01
+
 ### Added
 - Initial scaffold: package layout, tooling (ruff, mypy strict, pytest), CI, docs.
 - `spec.py`: `FeatureSpec` and the `Family` / `Horizon` / `DataTier` / `Recurrence` / `Cost` /
