@@ -25,7 +25,11 @@ from sabia.spec import (
 
 # Family modules whose FEATURES tuples make up Registry.default(). Appended as each family lands so
 # the default catalog grows explicitly -- never via import side effects.
-_FAMILY_MODULES: tuple[str, ...] = ("sabia.momentum",)
+_FAMILY_MODULES: tuple[str, ...] = (
+    "sabia.returns",
+    "sabia.volatility",
+    "sabia.momentum",
+)
 
 _NAME_RE = re.compile(NAME_PATTERN)
 

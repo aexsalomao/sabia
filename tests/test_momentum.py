@@ -5,7 +5,7 @@ from datetime import UTC, datetime, timedelta
 import polars as pl
 import pytest
 
-from sabia.momentum import rsi
+from sabia.momentum import roc, rsi, stoch_k, williams_r
 from sabia.spec import Column
 
 PERIOD = 14
@@ -18,6 +18,20 @@ def _frame(closes: list[float]) -> pl.DataFrame:
         {
             Column.TIMESTAMP: [start + timedelta(days=i) for i in range(n)],
             Column.SYMBOL: ["AAA"] * n,
+            Column.CLOSE: closes,
+        }
+    )
+
+
+def _ohlc(highs: list[float], lows: list[float], closes: list[float]) -> pl.DataFrame:
+    n = len(closes)
+    start = datetime(2024, 1, 1, tzinfo=UTC)
+    return pl.DataFrame(
+        {
+            Column.TIMESTAMP: [start + timedelta(days=i) for i in range(n)],
+            Column.SYMBOL: ["AAA"] * n,
+            Column.HIGH: highs,
+            Column.LOW: lows,
             Column.CLOSE: closes,
         }
     )
@@ -46,3 +60,38 @@ def test_rsi_stays_within_bounds() -> None:
     closes = [100.0, 102.0, 101.0, 105.0, 103.0, 108.0, 107.0, 110.0] * 5
     out = _frame(closes).select(rsi(period=PERIOD)).to_series().drop_nulls()
     assert out.min() >= 0.0 and out.max() <= 100.0
+
+
+def test_roc_matches_percent_change_over_window() -> None:
+    closes = [100.0] * 10 + [110.0]
+    out = _frame(closes).select(roc(window=10)).to_series()
+    assert out[10] == pytest.approx(10.0)
+
+
+def test_roc_zero_base_is_null() -> None:
+    closes = [0.0] + [100.0] * 10
+    out = _frame(closes).select(roc(window=10)).to_series()
+    assert out[10] is None
+
+
+def test_williams_r_matches_hand_value() -> None:
+    n = 14
+    df = _ohlc([110.0] * n, [90.0] * n, [100.0] * n)
+    out = df.select(williams_r(window=14)).to_series()
+    # -100 * (110 - 100) / (110 - 90) = -50
+    assert out[13] == pytest.approx(-50.0)
+
+
+def test_stoch_k_matches_hand_value() -> None:
+    n = 14
+    df = _ohlc([110.0] * n, [90.0] * n, [100.0] * n)
+    out = df.select(stoch_k(window=14)).to_series()
+    # 100 * (100 - 90) / (110 - 90) = 50
+    assert out[13] == pytest.approx(50.0)
+
+
+def test_stoch_k_flat_range_is_null() -> None:
+    n = 14
+    df = _ohlc([100.0] * n, [100.0] * n, [100.0] * n)
+    out = df.select(stoch_k(window=14)).to_series()
+    assert out[13] is None
