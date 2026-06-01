@@ -22,7 +22,7 @@ Each family is a module of pure functions returning `pl.Expr`:
 
 ```python
 sabia.momentum.rsi(period=14)            # -> pl.Expr
-sabia.volatility.vol_yz(window=21)       # -> pl.Expr
+sabia.volatility.vol_yz(window=21)       # -> pl.Expr (keyword-only params)
 ```
 
 `microstructure` exists in the `Family` enum but ships in a later minor version (v1 is bars-only).

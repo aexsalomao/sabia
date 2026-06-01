@@ -54,6 +54,9 @@ build-backend = "uv_build"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# Default run is the fast unit suite; calibration (integration) and benchmarks (slow) are separate
+# gates, run explicitly with `pytest -m integration` / `pytest -m slow`.
+addopts = "-m 'not slow and not integration'"
 markers = [
     "integration: calibration / cross-subsystem tests (local fixture, no network)",
     "slow: performance benchmarks (pytest-benchmark)",

@@ -35,7 +35,7 @@ import sabia
 frame = ...  # OHLCV LazyFrame/DataFrame; see sabia.validate for the input contract
 
 # Features are pl.Expr — compose them lazily, or materialize eagerly:
-df = sabia.compute(frame, sabia.momentum.rsi(14), sabia.volatility.vol_yz(21))
+df = sabia.compute(frame, sabia.momentum.rsi(period=14), sabia.volatility.vol_yz(window=21))
 
 # Query the registry by horizon or data tier:
 reg = sabia.Registry.default()
