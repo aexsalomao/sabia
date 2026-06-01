@@ -1,0 +1,5 @@
+# Normalize line endings to LF so ruff format --check is stable across platforms/CI.
+* text=auto eol=lf
+*.png binary
+*.gz binary
+*.whl binary
