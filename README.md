@@ -9,9 +9,10 @@
 marketgoblin (data in) → sabia (features) → quale (signals)
 ```
 
-It depends on [`quando`](https://github.com/aexsalomao/quando) for sessions/calendar, and on nothing
-else at runtime beyond `polars` and `numpy`. Risk/eval math lives in `ruin`; signals live in `quale`.
-sabia computes features and nothing else.
+Runtime dependencies are just `polars` and `numpy`. (The stack's calendar brick
+[`quando`](https://github.com/aexsalomao/quando) will be wired in when calendar-aware seasonality or
+the microstructure tier needs it — v1 seasonality is pure vectorized datetime.) Risk/eval math lives
+in `ruin`; signals live in `quale`. sabia computes features and nothing else.
 
 ## What it is
 

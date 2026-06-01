@@ -22,7 +22,9 @@ dependencies = [
     # Polars is pinned exactly: the §3.4 immutability / fingerprint guarantee depends on it.
     "polars==1.39.3",
     "numpy>=1.26",
-    "quando",
+    # sabia's input contract is tz-aware UTC timestamps; tzdata provides the IANA zone database
+    # where the OS lacks one (Windows, slim containers), so zone resolution never fails at runtime.
+    "tzdata",
 ]
 
 [project.optional-dependencies]
@@ -44,9 +46,6 @@ Documentation = "https://aexsalomao.github.io/sabia"
 Repository = "https://github.com/aexsalomao/sabia"
 Issues = "https://github.com/aexsalomao/sabia/issues"
 Changelog = "https://github.com/aexsalomao/sabia/blob/master/CHANGELOG.md"
-
-[tool.uv.sources]
-quando = { path = "../quando", editable = true }
 
 [build-system]
 requires = ["uv_build>=0.11.6,<0.12.0"]
