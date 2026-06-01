@@ -33,12 +33,18 @@ _FAMILY_MODULES: tuple[str, ...] = (
     "sabia.volume",
     "sabia.distribution",
     "sabia.mean_reversion",
+    "sabia.seasonality",
+    "sabia.cross_sectional",
 )
 
 _NAME_RE = re.compile(NAME_PATTERN)
 
 # Most features output Float64; a module-level singleton avoids a call in argument defaults.
 _DEFAULT_OUTPUT_DTYPE: pl.DataType = pl.Float64()
+
+# Intermediate column holding a cross-sectional feature's per-symbol signal during two-pass
+# evaluation (Polars cannot nest .over(symbol) inside .over(timestamp) in one expression).
+XS_SIGNAL_COLUMN = "__sabia_xs_signal__"
 
 
 @dataclass(frozen=True, slots=True)
@@ -48,10 +54,15 @@ class RegisteredFeature:
     ``build`` is zero-arg because the parameterization (period, window, ...) is frozen into the
     spec; it returns the expression over the canonical OHLCV columns. Callers who need custom
     column names call the family function directly.
+
+    ``signal`` is set only for cross-sectional features: it builds the per-symbol signal that
+    ``evaluate`` materializes (as ``XS_SIGNAL_COLUMN``) before ``build`` reduces it across the
+    cross-section. Time-series features leave it ``None`` and evaluate in a single pass.
     """
 
     spec: FeatureSpec
     build: Callable[[], pl.Expr]
+    signal: Callable[[], pl.Expr] | None = None
 
 
 class Registry:
@@ -148,11 +159,13 @@ def make_feature(
     output_dtype: pl.DataType = _DEFAULT_OUTPUT_DTYPE,
     data_tier: DataTier = DataTier.DAILY,
     version: int = 1,
+    signal: Callable[[], pl.Expr] | None = None,
 ) -> RegisteredFeature:
     """Build a ``RegisteredFeature``: the single construction point for shipped features.
 
     ``fn`` is the formula function (used for the fingerprint); ``build`` is the zero-arg closure
-    producing the canonical expression. The fingerprint is derived from ``fn`` and ``params`` so
+    producing the canonical expression. ``signal`` is the per-symbol pre-pass for cross-sectional
+    features (see ``RegisteredFeature``). The fingerprint is derived from ``fn`` and ``params`` so
     train-vs-serve identity is provable (FEATURES.md 3.4).
     """
     spec = FeatureSpec(
@@ -172,7 +185,26 @@ def make_feature(
         citation=citation,
         params=dict(params),
     )
-    return RegisteredFeature(spec=spec, build=build)
+    return RegisteredFeature(spec=spec, build=build, signal=signal)
 
 
-__all__ = ["RegisteredFeature", "Registry", "make_feature"]
+def evaluate(frame: pl.DataFrame | pl.LazyFrame, feature: RegisteredFeature) -> pl.Series:
+    """Evaluate one feature to a Series, two-pass for cross-sectional features.
+
+    A cross-sectional feature's per-symbol ``signal`` is materialized first (Polars cannot nest
+    ``.over(symbol)`` inside ``.over(timestamp)`` in a single expression); time-series features
+    evaluate in a single ``select``.
+    """
+    lf = frame.lazy()
+    if feature.signal is not None:
+        lf = lf.with_columns(feature.signal().alias(XS_SIGNAL_COLUMN))
+    return lf.select(feature.build()).collect().to_series()
+
+
+__all__ = [
+    "RegisteredFeature",
+    "Registry",
+    "XS_SIGNAL_COLUMN",
+    "evaluate",
+    "make_feature",
+]

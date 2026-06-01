@@ -21,7 +21,7 @@ from hypothesis import strategies as st
 from synthetic import append_future
 
 import sabia
-from sabia.registry import RegisteredFeature, Registry
+from sabia.registry import RegisteredFeature, Registry, evaluate
 from sabia.spec import (
     DEFAULT_FLOAT_TOLERANCE,
     PARITY_RECURSIVE_TOLERANCE,
@@ -41,11 +41,18 @@ _VALUE_COLUMNS = {Column.OPEN, Column.HIGH, Column.LOW, Column.CLOSE, Column.VOL
 
 
 def _evaluate(feature: RegisteredFeature, frame: pl.DataFrame) -> pl.Series:
-    return frame.lazy().select(feature.build()).collect().to_series()
+    # Delegates to the library evaluator: single-pass for time-series, two-pass for cross-sectional.
+    return evaluate(frame, feature)
 
 
 def _value_inputs(feature: RegisteredFeature) -> list[Column]:
     return [c for c in feature.spec.inputs if c in _VALUE_COLUMNS]
+
+
+# Null-propagation only applies to features that consume value columns; timestamp-only features
+# (seasonality) have no value input to poison.
+_TS_VALUED = [f for f in _TS if _value_inputs(f)]
+_TS_VALUED_IDS = [f.spec.name for f in _TS_VALUED]
 
 
 # --- time-series families ----------------------------------------------------------------------
@@ -95,7 +102,7 @@ def test_windowed_recompute_parity(feature: RegisteredFeature, series: pl.DataFr
     assert_series_close(window_last, full_last, rtol=rtol, atol=atol)
 
 
-@pytest.mark.parametrize("feature", _TS, ids=_TS_IDS)
+@pytest.mark.parametrize("feature", _TS_VALUED, ids=_TS_VALUED_IDS)
 def test_interior_null_propagates(feature: RegisteredFeature, series: pl.DataFrame) -> None:
     last = series.height - 1
     row_index = pl.int_range(pl.len())
@@ -120,10 +127,19 @@ def test_no_window_bleed_across_symbols(feature: RegisteredFeature, panel: pl.Da
 # --- cross-sectional family --------------------------------------------------------------------
 
 
+def _xs_with_keys(feature: RegisteredFeature, frame: pl.DataFrame) -> pl.DataFrame:
+    # Attach the evaluated value to its timestamp/symbol keys (evaluate preserves row order).
+    return frame.select(Column.TIMESTAMP, Column.SYMBOL).with_columns(
+        _value=_evaluate(feature, frame)
+    )
+
+
 @pytest.mark.parametrize("feature", _XS, ids=_XS_IDS)
 def test_xs_output_dtype_matches_spec(feature: RegisteredFeature, panel: pl.DataFrame) -> None:
-    out = panel.lazy().select(feature.build()).collect().to_series()
+    out = _evaluate(feature, panel)
     assert out.dtype == feature.spec.output_dtype
+    # Guard against vacuous passes: an all-null output would satisfy every structural check.
+    assert out.drop_nulls().len() > 0, "cross-sectional feature produced no values"
 
 
 @pytest.mark.parametrize("feature", _XS, ids=_XS_IDS)
@@ -133,10 +149,9 @@ def test_xs_causality_future_does_not_change_past(
     timestamps = panel.get_column(Column.TIMESTAMP).unique().sort()
     cutoff = timestamps[len(timestamps) // 2]
     keep = pl.col(Column.TIMESTAMP) <= cutoff
-    full = panel.lazy().select(Column.TIMESTAMP, Column.SYMBOL, feature.build()).collect()
-    full_past = full.filter(keep).to_series(2)
-    truncated = panel.filter(keep)
-    part = truncated.lazy().select(feature.build()).collect().to_series()
+    full_past = _xs_with_keys(feature, panel).filter(keep).to_series(2)
+    part = _xs_with_keys(feature, panel.filter(keep)).to_series(2)
+    assert full_past.drop_nulls().len() > 0, "no values to compare"
     assert_series_close(part, full_past, rtol=0.0, atol=DEFAULT_FLOAT_TOLERANCE)
 
 
@@ -145,17 +160,11 @@ def test_xs_windowed_recompute_parity(feature: RegisteredFeature, panel: pl.Data
     timestamps = panel.get_column(Column.TIMESTAMP).unique().sort()
     window_start = timestamps[-feature.spec.min_history]
     last_ts = timestamps[-1]
-    full = panel.lazy().select(Column.TIMESTAMP, Column.SYMBOL, feature.build()).collect()
-    full_last = full.filter(pl.col(Column.TIMESTAMP) == last_ts).sort(Column.SYMBOL).to_series(2)
+    at_last = pl.col(Column.TIMESTAMP) == last_ts
+    full_last = _xs_with_keys(feature, panel).filter(at_last).sort(Column.SYMBOL).to_series(2)
     windowed = panel.filter(pl.col(Column.TIMESTAMP) >= window_start)
-    part = (
-        windowed.lazy()
-        .select(Column.TIMESTAMP, Column.SYMBOL, feature.build())
-        .collect()
-        .filter(pl.col(Column.TIMESTAMP) == last_ts)
-        .sort(Column.SYMBOL)
-        .to_series(2)
-    )
+    part = _xs_with_keys(feature, windowed).filter(at_last).sort(Column.SYMBOL).to_series(2)
+    assert full_last.drop_nulls().len() > 0, "no values to compare"
     assert_series_close(part, full_last, rtol=0.0, atol=DEFAULT_FLOAT_TOLERANCE)
 
 
