@@ -6,18 +6,31 @@ from __future__ import annotations
 
 import importlib
 import re
-from collections.abc import Callable, Iterable, Iterator
+from collections.abc import Callable, Iterable, Iterator, Mapping
 from dataclasses import dataclass
 
 import polars as pl
 
-from sabia.spec import NAME_PATTERN, DataTier, FeatureSpec
+from sabia.spec import (
+    NAME_PATTERN,
+    Column,
+    Cost,
+    DataTier,
+    Family,
+    FeatureSpec,
+    Horizon,
+    Recurrence,
+    feature_fingerprint,
+)
 
 # Family modules whose FEATURES tuples make up Registry.default(). Appended as each family lands so
 # the default catalog grows explicitly -- never via import side effects.
-_FAMILY_MODULES: tuple[str, ...] = ()
+_FAMILY_MODULES: tuple[str, ...] = ("sabia.momentum",)
 
 _NAME_RE = re.compile(NAME_PATTERN)
+
+# Most features output Float64; a module-level singleton avoids a call in argument defaults.
+_DEFAULT_OUTPUT_DTYPE: pl.DataType = pl.Float64()
 
 
 @dataclass(frozen=True, slots=True)
@@ -109,4 +122,49 @@ class Registry:
         return cls(features)
 
 
-__all__ = ["RegisteredFeature", "Registry"]
+def make_feature(
+    fn: Callable[..., pl.Expr],
+    build: Callable[[], pl.Expr],
+    *,
+    name: str,
+    family: Family,
+    native_band: Iterable[Horizon],
+    lookback: int | None,
+    min_history: int,
+    recurrence: Recurrence,
+    effective_warmup: int,
+    cost_class: Cost,
+    inputs: Iterable[Column],
+    citation: str,
+    params: Mapping[str, object],
+    output_dtype: pl.DataType = _DEFAULT_OUTPUT_DTYPE,
+    data_tier: DataTier = DataTier.DAILY,
+    version: int = 1,
+) -> RegisteredFeature:
+    """Build a ``RegisteredFeature``: the single construction point for shipped features.
+
+    ``fn`` is the formula function (used for the fingerprint); ``build`` is the zero-arg closure
+    producing the canonical expression. The fingerprint is derived from ``fn`` and ``params`` so
+    train-vs-serve identity is provable (FEATURES.md 3.4).
+    """
+    spec = FeatureSpec(
+        name=name,
+        version=version,
+        fingerprint=feature_fingerprint(fn, params),
+        family=family,
+        native_band=frozenset(native_band),
+        lookback=lookback,
+        min_history=min_history,
+        recurrence=recurrence,
+        effective_warmup=effective_warmup,
+        cost_class=cost_class,
+        data_tier=data_tier,
+        inputs=frozenset(inputs),
+        output_dtype=output_dtype,
+        citation=citation,
+        params=dict(params),
+    )
+    return RegisteredFeature(spec=spec, build=build)
+
+
+__all__ = ["RegisteredFeature", "Registry", "make_feature"]

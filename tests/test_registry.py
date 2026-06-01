@@ -42,8 +42,8 @@ def _feature(
     return RegisteredFeature(spec=spec, build=lambda: pl.col(Column.CLOSE))
 
 
-def test_default_registry_is_empty_until_families_land() -> None:
-    assert len(Registry.default()) == 0
+def test_default_registry_contains_shipped_features() -> None:
+    assert "rsi_14" in Registry.default()
 
 
 def test_add_and_get_roundtrips() -> None:

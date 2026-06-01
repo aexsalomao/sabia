@@ -143,10 +143,16 @@ def _normalized_source(fn: Callable[..., pl.Expr]) -> str:
 
     Round-tripping through the AST drops comments and normalizes whitespace, so reformatting a
     feature (e.g. a ``ruff format`` pass) does not change its fingerprint -- only a real change to
-    the expression does. This is what makes the 3.4 immutability guarantee enforceable in CI.
+    the expression does. The function name and decorators are neutralized too: renaming or
+    re-decorating a feature whose formula is unchanged must not bump its fingerprint. This is what
+    makes the 3.4 immutability guarantee enforceable in CI.
     """
-    source = textwrap.dedent(inspect.getsource(fn))
-    return ast.unparse(ast.parse(source))
+    tree = ast.parse(textwrap.dedent(inspect.getsource(fn)))
+    for node in ast.walk(tree):
+        if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef):
+            node.name = "_"
+            node.decorator_list = []
+    return ast.unparse(tree)
 
 
 def feature_fingerprint(
