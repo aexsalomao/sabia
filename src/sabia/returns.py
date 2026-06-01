@@ -8,22 +8,25 @@ from functools import partial
 
 import polars as pl
 
+from sabia._expr import grouped
 from sabia.registry import RegisteredFeature, make_feature
 from sabia.spec import Column, Cost, Family, Horizon, Recurrence
 
 
-def ret_simple(close: str = Column.CLOSE, *, symbol: str = Column.SYMBOL) -> pl.Expr:
+def ret_simple(close: str = Column.CLOSE, *, symbol: str | None = Column.SYMBOL) -> pl.Expr:
     """One-bar simple (arithmetic) return. A zero prior price yields null. FINITE."""
     prev = pl.col(close).shift(1)
     value = pl.when(prev == 0).then(None).otherwise(pl.col(close) / prev - 1)
-    return value.over(symbol).alias("ret_simple")
+    return grouped(value, symbol).alias("ret_simple")
 
 
-def ret_log(close: str = Column.CLOSE, *, period: int = 1, symbol: str = Column.SYMBOL) -> pl.Expr:
+def ret_log(
+    close: str = Column.CLOSE, *, period: int = 1, symbol: str | None = Column.SYMBOL
+) -> pl.Expr:
     """``period``-bar log return ``ln(P_t / P_{t-period})``. Non-positive ratio -> null. FINITE."""
     ratio = pl.col(close) / pl.col(close).shift(period)
     value = pl.when(ratio <= 0).then(None).otherwise(ratio.log())
-    return value.over(symbol).alias(f"ret_log_{period}")
+    return grouped(value, symbol).alias(f"ret_log_{period}")
 
 
 def _band(period: int) -> Horizon:

@@ -8,6 +8,7 @@ from functools import partial
 
 import polars as pl
 
+from sabia._expr import grouped
 from sabia._math import safe_div
 from sabia.registry import RegisteredFeature, make_feature
 from sabia.spec import Column, Cost, Family, Horizon, Recurrence, ewm_effective_warmup
@@ -15,7 +16,9 @@ from sabia.spec import Column, Cost, Family, Horizon, Recurrence, ewm_effective_
 _BANDS = (Horizon.SHORT, Horizon.MEDIUM)
 
 
-def rsi(close: str = Column.CLOSE, *, period: int = 14, symbol: str = Column.SYMBOL) -> pl.Expr:
+def rsi(
+    close: str = Column.CLOSE, *, period: int = 14, symbol: str | None = Column.SYMBOL
+) -> pl.Expr:
     """Wilder's Relative Strength Index, in [0, 100]. Strictly trailing, RECURSIVE.
 
     A flat series (no gains and no losses) yields ``null`` -- there is no information to oscillate
@@ -35,14 +38,16 @@ def rsi(close: str = Column.CLOSE, *, period: int = 14, symbol: str = Column.SYM
         .then(pl.lit(100.0))
         .otherwise(100 - 100 / (1 + rs))
     )
-    return value.over(symbol).alias(f"rsi_{period}")
+    return grouped(value, symbol).alias(f"rsi_{period}")
 
 
-def roc(close: str = Column.CLOSE, *, window: int = 10, symbol: str = Column.SYMBOL) -> pl.Expr:
+def roc(
+    close: str = Column.CLOSE, *, window: int = 10, symbol: str | None = Column.SYMBOL
+) -> pl.Expr:
     """Rate of change: percent return over ``window`` bars. A zero base yields null. FINITE."""
     base = pl.col(close).shift(window)
     value = safe_div(pl.col(close) - base, base) * 100
-    return value.over(symbol).alias(f"roc_{window}")
+    return grouped(value, symbol).alias(f"roc_{window}")
 
 
 def williams_r(
@@ -51,12 +56,12 @@ def williams_r(
     close: str = Column.CLOSE,
     *,
     window: int = 14,
-    symbol: str = Column.SYMBOL,
+    symbol: str | None = Column.SYMBOL,
 ) -> pl.Expr:
     """Williams %R, in [-100, 0]. A flat range yields null. FINITE. Citation: Williams (1979)."""
     highest, lowest = _range_extremes(high, low, window)
     value = safe_div(highest - pl.col(close), highest - lowest) * -100
-    return value.over(symbol).alias(f"williams_r_{window}")
+    return grouped(value, symbol).alias(f"williams_r_{window}")
 
 
 def stoch_k(
@@ -65,10 +70,10 @@ def stoch_k(
     close: str = Column.CLOSE,
     *,
     window: int = 14,
-    symbol: str = Column.SYMBOL,
+    symbol: str | None = Column.SYMBOL,
 ) -> pl.Expr:
     """Stochastic %K, in [0, 100]. A flat range yields null. FINITE. Citation: Lane (1984)."""
-    return _stoch_k_core(high, low, close, window).over(symbol).alias(f"stoch_k_{window}")
+    return grouped(_stoch_k_core(high, low, close, window), symbol).alias(f"stoch_k_{window}")
 
 
 def stoch_d(
@@ -78,12 +83,12 @@ def stoch_d(
     *,
     window: int = 14,
     smooth: int = 3,
-    symbol: str = Column.SYMBOL,
+    symbol: str | None = Column.SYMBOL,
 ) -> pl.Expr:
     """Stochastic %D: an ``smooth``-bar SMA of %K. FINITE. Citation: Lane (1984)."""
     k = _stoch_k_core(high, low, close, window)
     value = k.rolling_mean(smooth, min_samples=smooth)
-    return value.over(symbol).alias(f"stoch_d_{window}_{smooth}")
+    return grouped(value, symbol).alias(f"stoch_d_{window}_{smooth}")
 
 
 def macd(
@@ -91,12 +96,12 @@ def macd(
     *,
     fast: int = 12,
     slow: int = 26,
-    symbol: str = Column.SYMBOL,
+    symbol: str | None = Column.SYMBOL,
 ) -> pl.Expr:
     """MACD line: fast EMA minus slow EMA of close. RECURSIVE. Citation: Appel (1979)."""
     ema_fast = pl.col(close).ewm_mean(span=fast, adjust=False, min_samples=fast)
     ema_slow = pl.col(close).ewm_mean(span=slow, adjust=False, min_samples=slow)
-    return (ema_fast - ema_slow).over(symbol).alias(f"macd_{fast}_{slow}")
+    return grouped((ema_fast - ema_slow), symbol).alias(f"macd_{fast}_{slow}")
 
 
 def _range_extremes(high: str, low: str, window: int) -> tuple[pl.Expr, pl.Expr]:

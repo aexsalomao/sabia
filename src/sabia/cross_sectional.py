@@ -10,6 +10,7 @@ from functools import partial
 
 import polars as pl
 
+from sabia._expr import grouped
 from sabia._math import safe_log
 from sabia.normalize import xs_rank, xs_zscore
 from sabia.registry import XS_SIGNAL_COLUMN, RegisteredFeature, make_feature
@@ -17,18 +18,18 @@ from sabia.spec import Column, Cost, Family, Horizon, Recurrence
 
 
 def momentum_signal(
-    close: str = Column.CLOSE, *, window: int, symbol: str = Column.SYMBOL
+    close: str = Column.CLOSE, *, window: int, symbol: str | None = Column.SYMBOL
 ) -> pl.Expr:
     """Per-symbol ``window``-bar log-return signal (the input to a cross-sectional reduction)."""
-    return safe_log(pl.col(close) / pl.col(close).shift(window)).over(symbol)
+    return grouped(safe_log(pl.col(close) / pl.col(close).shift(window)), symbol)
 
 
 def volatility_signal(
-    close: str = Column.CLOSE, *, window: int, symbol: str = Column.SYMBOL
+    close: str = Column.CLOSE, *, window: int, symbol: str | None = Column.SYMBOL
 ) -> pl.Expr:
     """Per-symbol realized-volatility signal over ``window`` bars."""
     log_return = safe_log(pl.col(close) / pl.col(close).shift(1))
-    return log_return.rolling_std(window, min_samples=window).over(symbol)
+    return grouped(log_return.rolling_std(window, min_samples=window), symbol)
 
 
 def _xs_rank(name: str, timestamp: str = Column.TIMESTAMP) -> pl.Expr:

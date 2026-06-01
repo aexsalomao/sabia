@@ -24,8 +24,8 @@ def zscore(expr: pl.Expr, window: int, *, over: str | None = None) -> pl.Expr:
     (std == 0) yields ``null`` rather than ``inf`` (FEATURES.md 3.5). Pass ``over`` to compute the
     rolling statistics within each group (e.g. per symbol on a panel).
     """
-    mean = expr.rolling_mean(window)
-    std = expr.rolling_std(window)
+    mean = expr.rolling_mean(window, min_samples=window)
+    std = expr.rolling_std(window, min_samples=window)
     if over is not None:
         mean = mean.over(over)
         std = std.over(over)
@@ -69,9 +69,12 @@ def frac_diff(
     weights = _ffd_weights(d, threshold=threshold, max_lag=max_lag)
     terms = []
     for lag, weight in enumerate(weights):
-        lagged = expr if lag == 0 else expr.shift(lag)
-        if over is not None and lag != 0:
-            lagged = expr.shift(lag).over(over)
+        if lag == 0:
+            lagged = expr  # the current bar; shift(0) is a no-op and never crosses a group
+        elif over is None:
+            lagged = expr.shift(lag)
+        else:
+            lagged = expr.shift(lag).over(over)  # lag within each group on a panel
         terms.append(lagged * weight)
     return functools.reduce(operator.add, terms)
 

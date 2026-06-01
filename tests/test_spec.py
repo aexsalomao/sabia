@@ -1,19 +1,24 @@
 """Tests for the feature contract types and helpers (spec.py)."""
 
 import math
+from functools import partial
 
 import polars as pl
 import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
+from sabia.cross_sectional import momentum_signal
+from sabia.normalize import xs_rank
 from sabia.spec import (
     EWM_WARMUP_TOL,
     HORIZON_LOOKBACKS,
     Horizon,
+    _transitive_sources,
     ewm_effective_warmup,
     feature_fingerprint,
 )
+from sabia.volatility import _rs_term, vol_rs
 
 # --- ewm_effective_warmup ----------------------------------------------------------------------
 
@@ -82,6 +87,26 @@ def test_fingerprint_is_sixteen_hex_chars(period: int) -> None:
     fingerprint = feature_fingerprint(_rsi_formatted, {"period": period})
     assert len(fingerprint) == 16
     assert all(c in "0123456789abcdef" for c in fingerprint)
+
+
+def test_fingerprint_covers_first_party_helpers() -> None:
+    # The fingerprint must follow first-party calls: vol_rs delegates its math to _rs_term, so a
+    # change to _rs_term must be inside vol_rs's hashed source -- otherwise the manifest gate would
+    # miss a real formula change (the gap this guards against).
+    sources = _transitive_sources([vol_rs])
+    rs_term_source = _transitive_sources([_rs_term])[0]
+    assert rs_term_source in sources
+
+
+def test_fingerprint_covers_cross_sectional_reduction() -> None:
+    # A cross-sectional feature's defining operation is its reduction, carried in `build`, not its
+    # signal. The fingerprint must hash the reduction too: the rank and zscore builders over the
+    # same signal must differ.
+    rank_fp = feature_fingerprint(
+        momentum_signal, {"window": 21}, partial(xs_rank, over="timestamp")
+    )
+    plain_fp = feature_fingerprint(momentum_signal, {"window": 21})
+    assert rank_fp != plain_fp
 
 
 # --- horizon grids -----------------------------------------------------------------------------

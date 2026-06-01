@@ -8,21 +8,26 @@ from functools import partial
 
 import polars as pl
 
+from sabia._expr import grouped
 from sabia._math import safe_div
 from sabia.registry import RegisteredFeature, make_feature
 from sabia.spec import Column, Cost, Family, Horizon, Recurrence, ewm_effective_warmup
 
 
-def sma(close: str = Column.CLOSE, *, window: int = 50, symbol: str = Column.SYMBOL) -> pl.Expr:
+def sma(
+    close: str = Column.CLOSE, *, window: int = 50, symbol: str | None = Column.SYMBOL
+) -> pl.Expr:
     """Simple moving average of close over ``window`` bars. FINITE."""
     value = pl.col(close).rolling_mean(window, min_samples=window)
-    return value.over(symbol).alias(f"sma_{window}")
+    return grouped(value, symbol).alias(f"sma_{window}")
 
 
-def ema(close: str = Column.CLOSE, *, span: int = 12, symbol: str = Column.SYMBOL) -> pl.Expr:
+def ema(
+    close: str = Column.CLOSE, *, span: int = 12, symbol: str | None = Column.SYMBOL
+) -> pl.Expr:
     """Exponential moving average of close (``adjust=False``). RECURSIVE."""
     value = pl.col(close).ewm_mean(span=span, adjust=False, min_samples=span)
-    return value.over(symbol).alias(f"ema_{span}")
+    return grouped(value, symbol).alias(f"ema_{span}")
 
 
 def adx(
@@ -31,14 +36,14 @@ def adx(
     close: str = Column.CLOSE,
     *,
     window: int = 14,
-    symbol: str = Column.SYMBOL,
+    symbol: str | None = Column.SYMBOL,
 ) -> pl.Expr:
     """Average Directional Index, in [0, 100]: Wilder's trend-strength measure. RECURSIVE.
 
     Built from smoothed directional movement (+DM/-DM) and true range, then a second RMA over the
     directional index DX. A bar with no directional spread yields null. Citation: Wilder (1978).
     """
-    return _adx_core(high, low, close, window).over(symbol).alias(f"adx_{window}")
+    return grouped(_adx_core(high, low, close, window), symbol).alias(f"adx_{window}")
 
 
 def _rma(expr: pl.Expr, window: int) -> pl.Expr:

@@ -8,6 +8,7 @@ from functools import partial
 
 import polars as pl
 
+from sabia._expr import grouped
 from sabia._math import safe_div
 from sabia.normalize import zscore
 from sabia.registry import RegisteredFeature, make_feature
@@ -21,7 +22,7 @@ def amihud(
     volume: str = Column.VOLUME,
     *,
     window: int = 21,
-    symbol: str = Column.SYMBOL,
+    symbol: str | None = Column.SYMBOL,
 ) -> pl.Expr:
     """Amihud (2002) illiquidity: rolling mean of |return| per unit dollar volume. FINITE.
 
@@ -32,7 +33,7 @@ def amihud(
     dollar_volume = pl.col(close) * pl.col(volume)
     ratio = safe_div(abs_return, dollar_volume)
     value = ratio.rolling_mean(window, min_samples=window)
-    return value.over(symbol).alias(f"amihud_{window}")
+    return grouped(value, symbol).alias(f"amihud_{window}")
 
 
 def cmf(
@@ -42,7 +43,7 @@ def cmf(
     volume: str = Column.VOLUME,
     *,
     window: int = 21,
-    symbol: str = Column.SYMBOL,
+    symbol: str | None = Column.SYMBOL,
 ) -> pl.Expr:
     """Chaikin Money Flow over ``window`` bars, in [-1, 1]. FINITE. Citation: Chaikin."""
     multiplier = safe_div(
@@ -53,21 +54,21 @@ def cmf(
         money_flow_volume.rolling_sum(window, min_samples=window),
         pl.col(volume).rolling_sum(window, min_samples=window),
     )
-    return value.over(symbol).alias(f"cmf_{window}")
+    return grouped(value, symbol).alias(f"cmf_{window}")
 
 
 def vol_zscore(
-    volume: str = Column.VOLUME, *, window: int = 21, symbol: str = Column.SYMBOL
+    volume: str = Column.VOLUME, *, window: int = 21, symbol: str | None = Column.SYMBOL
 ) -> pl.Expr:
     """Rolling z-score of volume: how unusual today's volume is vs its recent norm. FINITE."""
     return zscore(pl.col(volume), window, over=symbol).alias(f"vol_zscore_{window}")
 
 
 def dollar_vol(
-    close: str = Column.CLOSE, volume: str = Column.VOLUME, *, symbol: str = Column.SYMBOL
+    close: str = Column.CLOSE, volume: str = Column.VOLUME, *, symbol: str | None = Column.SYMBOL
 ) -> pl.Expr:
     """Per-bar dollar volume (price times volume). FINITE."""
-    return (pl.col(close) * pl.col(volume)).over(symbol).alias("dollar_vol")
+    return grouped((pl.col(close) * pl.col(volume)), symbol).alias("dollar_vol")
 
 
 def adv(
@@ -75,11 +76,11 @@ def adv(
     volume: str = Column.VOLUME,
     *,
     window: int = 21,
-    symbol: str = Column.SYMBOL,
+    symbol: str | None = Column.SYMBOL,
 ) -> pl.Expr:
     """Average daily dollar volume over ``window`` bars: a liquidity scale. FINITE."""
     value = (pl.col(close) * pl.col(volume)).rolling_mean(window, min_samples=window)
-    return value.over(symbol).alias(f"adv_{window}")
+    return grouped(value, symbol).alias(f"adv_{window}")
 
 
 def signed_vol(
@@ -87,12 +88,12 @@ def signed_vol(
     volume: str = Column.VOLUME,
     *,
     window: int = 21,
-    symbol: str = Column.SYMBOL,
+    symbol: str | None = Column.SYMBOL,
 ) -> pl.Expr:
     """Windowed signed volume (Granville's OBV, FINITE form): net up/down volume over ``window``."""
     signed = pl.col(close).diff().sign() * pl.col(volume)
     value = signed.rolling_sum(window, min_samples=window)
-    return value.over(symbol).alias(f"signed_vol_{window}")
+    return grouped(value, symbol).alias(f"signed_vol_{window}")
 
 
 FEATURES: tuple[RegisteredFeature, ...] = (

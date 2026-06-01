@@ -11,6 +11,7 @@ from math import log
 
 import polars as pl
 
+from sabia._expr import grouped
 from sabia._math import safe_log, safe_sqrt
 from sabia.registry import RegisteredFeature, make_feature
 from sabia.spec import Column, Cost, Family, Horizon, Recurrence, ewm_effective_warmup
@@ -21,21 +22,25 @@ _OHLC = (Column.OPEN, Column.HIGH, Column.LOW, Column.CLOSE)
 
 
 def vol_close(
-    close: str = Column.CLOSE, *, window: int = 21, symbol: str = Column.SYMBOL
+    close: str = Column.CLOSE, *, window: int = 21, symbol: str | None = Column.SYMBOL
 ) -> pl.Expr:
     """Close-to-close volatility: rolling std of one-bar log returns. FINITE. Citation: classic."""
     log_return = safe_log(pl.col(close) / pl.col(close).shift(1))
     value = log_return.rolling_std(window, min_samples=window)
-    return value.over(symbol).alias(f"vol_close_{window}")
+    return grouped(value, symbol).alias(f"vol_close_{window}")
 
 
 def vol_parkinson(
-    high: str = Column.HIGH, low: str = Column.LOW, *, window: int = 21, symbol: str = Column.SYMBOL
+    high: str = Column.HIGH,
+    low: str = Column.LOW,
+    *,
+    window: int = 21,
+    symbol: str | None = Column.SYMBOL,
 ) -> pl.Expr:
     """Parkinson (1980) high-low range volatility. FINITE."""
     term = safe_log(pl.col(high) / pl.col(low)) ** 2
     variance = term.rolling_mean(window, min_samples=window) / (4.0 * _LN2)
-    return safe_sqrt(variance).over(symbol).alias(f"vol_parkinson_{window}")
+    return grouped(safe_sqrt(variance), symbol).alias(f"vol_parkinson_{window}")
 
 
 def vol_gk(
@@ -45,14 +50,14 @@ def vol_gk(
     close: str = Column.CLOSE,
     *,
     window: int = 21,
-    symbol: str = Column.SYMBOL,
+    symbol: str | None = Column.SYMBOL,
 ) -> pl.Expr:
     """Garman-Klass (1980) OHLC volatility. FINITE."""
     hl = safe_log(pl.col(high) / pl.col(low))
     co = safe_log(pl.col(close) / pl.col(open_))
     term = 0.5 * hl**2 - (2.0 * _LN2 - 1.0) * co**2
     variance = term.rolling_mean(window, min_samples=window)
-    return safe_sqrt(variance).over(symbol).alias(f"vol_gk_{window}")
+    return grouped(safe_sqrt(variance), symbol).alias(f"vol_gk_{window}")
 
 
 def vol_rs(
@@ -62,11 +67,11 @@ def vol_rs(
     close: str = Column.CLOSE,
     *,
     window: int = 21,
-    symbol: str = Column.SYMBOL,
+    symbol: str | None = Column.SYMBOL,
 ) -> pl.Expr:
     """Rogers-Satchell (1991) drift-independent OHLC volatility. FINITE."""
     variance = _rs_term(open_, high, low, close).rolling_mean(window, min_samples=window)
-    return safe_sqrt(variance).over(symbol).alias(f"vol_rs_{window}")
+    return grouped(safe_sqrt(variance), symbol).alias(f"vol_rs_{window}")
 
 
 def vol_yz(
@@ -76,7 +81,7 @@ def vol_yz(
     close: str = Column.CLOSE,
     *,
     window: int = 21,
-    symbol: str = Column.SYMBOL,
+    symbol: str | None = Column.SYMBOL,
 ) -> pl.Expr:
     """Yang-Zhang (2000) volatility: overnight + open-close + Rogers-Satchell. FINITE."""
     overnight = safe_log(pl.col(open_) / pl.col(close).shift(1))
@@ -86,7 +91,7 @@ def vol_yz(
     sigma_rs2 = _rs_term(open_, high, low, close).rolling_mean(window, min_samples=window)
     k = 0.34 / (1.34 + (window + 1) / (window - 1))
     variance = sigma_o2 + k * sigma_c2 + (1.0 - k) * sigma_rs2
-    return safe_sqrt(variance).over(symbol).alias(f"vol_yz_{window}")
+    return grouped(safe_sqrt(variance), symbol).alias(f"vol_yz_{window}")
 
 
 def atr(
@@ -95,7 +100,7 @@ def atr(
     close: str = Column.CLOSE,
     *,
     window: int = 14,
-    symbol: str = Column.SYMBOL,
+    symbol: str | None = Column.SYMBOL,
 ) -> pl.Expr:
     """Average True Range (Wilder 1978), RMA-smoothed. RECURSIVE."""
     prev_close = pl.col(close).shift(1)
@@ -105,7 +110,7 @@ def atr(
         (pl.col(low) - prev_close).abs(),
     )
     value = true_range.ewm_mean(alpha=1 / window, adjust=False, min_samples=window)
-    return value.over(symbol).alias(f"atr_{window}")
+    return grouped(value, symbol).alias(f"atr_{window}")
 
 
 def _rs_term(open_: str, high: str, low: str, close: str) -> pl.Expr:

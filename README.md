@@ -35,8 +35,12 @@ import sabia
 
 frame = ...  # OHLCV LazyFrame/DataFrame; see sabia.validate for the input contract
 
-# Features are pl.Expr — compose them lazily, or materialize eagerly:
+# Features group their trailing windows per symbol via a `symbol` column, so panels never bleed
+# across instruments. Features are pl.Expr — compose them lazily, or materialize eagerly:
 df = sabia.compute(frame, sabia.momentum.rsi(period=14), sabia.volatility.vol_yz(window=21))
+
+# A bare single series with no `symbol` column? Pass symbol=None to evaluate ungrouped:
+df = sabia.compute(frame, sabia.momentum.rsi(period=14, symbol=None))
 
 # Query the registry by horizon or data tier:
 reg = sabia.Registry.default()

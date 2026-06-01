@@ -165,13 +165,17 @@ def make_feature(
 
     ``fn`` is the formula function (used for the fingerprint); ``build`` is the zero-arg closure
     producing the canonical expression. ``signal`` is the per-symbol pre-pass for cross-sectional
-    features (see ``RegisteredFeature``). The fingerprint is derived from ``fn`` and ``params`` so
-    train-vs-serve identity is provable (FEATURES.md 3.4).
+    features (see ``RegisteredFeature``). The fingerprint is derived from ``fn``, ``params``, and
+    the ``build``/``signal`` builders -- so a cross-sectional feature's reduction is hashed too, not
+    just its signal -- making train-vs-serve identity provable (FEATURES.md 3.4).
     """
+    extra_fns: list[object] = [build]
+    if signal is not None:
+        extra_fns.append(signal)
     spec = FeatureSpec(
         name=name,
         version=version,
-        fingerprint=feature_fingerprint(fn, params),
+        fingerprint=feature_fingerprint(fn, params, *extra_fns),
         family=family,
         native_band=frozenset(native_band),
         lookback=lookback,

@@ -58,6 +58,10 @@ def validate(
             the complete cross-section -- the same set of symbols at every ``t``.
 
     Note:
+        A ``symbol`` column is optional here: a symbol-less frame is a valid single series.
+        Time-series features group their trailing windows per symbol, so they expect that column
+        by default; to run them on a bare single series, pass ``symbol=None`` to the feature.
+
         "Bars closed" (no in-progress bar) is part of the contract but is not structurally
         checkable without a clock, which purity forbids (FEATURES.md 2.3). It is the engine's
         responsibility to pass only closed bars; sabia declares the precondition and trusts it.

@@ -9,6 +9,7 @@ from math import log
 
 import polars as pl
 
+from sabia._expr import grouped
 from sabia._math import safe_div
 from sabia.normalize import zscore
 from sabia.registry import RegisteredFeature, make_feature
@@ -18,13 +19,15 @@ _LN2 = log(2.0)
 _BOLLINGER_K = 2.0
 
 
-def zdist(close: str = Column.CLOSE, *, window: int = 20, symbol: str = Column.SYMBOL) -> pl.Expr:
+def zdist(
+    close: str = Column.CLOSE, *, window: int = 20, symbol: str | None = Column.SYMBOL
+) -> pl.Expr:
     """Rolling z-distance of close from its own mean: the mean-reversion signal. FINITE."""
     return zscore(pl.col(close), window, over=symbol).alias(f"zdist_{window}")
 
 
 def bollinger_pctb(
-    close: str = Column.CLOSE, *, window: int = 20, symbol: str = Column.SYMBOL
+    close: str = Column.CLOSE, *, window: int = 20, symbol: str | None = Column.SYMBOL
 ) -> pl.Expr:
     """Bollinger %b: position within the +/-2 sigma bands, 0 at the lower, 1 at the upper. FINITE.
 
@@ -34,15 +37,17 @@ def bollinger_pctb(
     return (0.5 + standardized / (2 * _BOLLINGER_K)).alias(f"bollinger_pctb_{window}")
 
 
-def dist_ma(close: str = Column.CLOSE, *, window: int = 50, symbol: str = Column.SYMBOL) -> pl.Expr:
+def dist_ma(
+    close: str = Column.CLOSE, *, window: int = 50, symbol: str | None = Column.SYMBOL
+) -> pl.Expr:
     """Fractional distance of close from its ``window``-bar SMA (close / SMA - 1). FINITE."""
     moving_average = pl.col(close).rolling_mean(window, min_samples=window)
     value = safe_div(pl.col(close), moving_average) - 1
-    return value.over(symbol).alias(f"dist_ma_{window}")
+    return grouped(value, symbol).alias(f"dist_ma_{window}")
 
 
 def half_life(
-    close: str = Column.CLOSE, *, window: int = 60, symbol: str = Column.SYMBOL
+    close: str = Column.CLOSE, *, window: int = 60, symbol: str | None = Column.SYMBOL
 ) -> pl.Expr:
     """Ornstein-Uhlenbeck mean-reversion half-life (in bars), from a rolling OLS slope. FINITE.
 
@@ -55,7 +60,7 @@ def half_life(
     beta = _rolling_slope(level, change, window)
     reverting = (beta > -1) & (beta < 0)
     value = pl.when(reverting).then(-_LN2 / (1 + beta).log()).otherwise(None)
-    return value.over(symbol).alias(f"half_life_{window}")
+    return grouped(value, symbol).alias(f"half_life_{window}")
 
 
 def _rolling_slope(x: pl.Expr, y: pl.Expr, window: int) -> pl.Expr:

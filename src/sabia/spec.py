@@ -5,11 +5,12 @@
 from __future__ import annotations
 
 import ast
+import functools
 import hashlib
 import inspect
 import json
 import textwrap
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
 from enum import Enum, IntEnum, StrEnum
 from math import ceil, log
@@ -138,36 +139,105 @@ def ewm_effective_warmup(alpha: float, tol: float = EWM_WARMUP_TOL) -> int:
 # --- fingerprint -------------------------------------------------------------------------------
 
 
-def _normalized_source(fn: Callable[..., pl.Expr]) -> str:
-    """Canonical, formatting- and comment-independent source for ``fn``.
+def _strip_docstring(node: ast.Module | ast.FunctionDef | ast.AsyncFunctionDef) -> None:
+    # A docstring survives ast.unparse as a string-literal statement, so a docstring- or
+    # citation-only edit would otherwise change the fingerprint even though the formula did not.
+    # Drop the leading string-literal expression so only the expression itself is hashed.
+    body = node.body
+    first = body[0] if body else None
+    if (
+        isinstance(first, ast.Expr)
+        and isinstance(first.value, ast.Constant)
+        and isinstance(first.value.value, str)
+    ):
+        del body[0]
+
+
+def _normalized_source(fn: Callable[..., object]) -> str:
+    """Canonical, formatting-, comment- and docstring-independent source for ``fn``.
 
     Round-tripping through the AST drops comments and normalizes whitespace, so reformatting a
     feature (e.g. a ``ruff format`` pass) does not change its fingerprint -- only a real change to
-    the expression does. The function name and decorators are neutralized too: renaming or
-    re-decorating a feature whose formula is unchanged must not bump its fingerprint. This is what
-    makes the 3.4 immutability guarantee enforceable in CI.
+    the expression does. The function name, decorators, and docstring are neutralized too: renaming,
+    re-decorating, or editing the docstring/citation of a feature whose formula is unchanged must
+    not bump its fingerprint. This is what makes the 3.4 immutability guarantee enforceable in CI.
     """
     tree = ast.parse(textwrap.dedent(inspect.getsource(fn)))
+    _strip_docstring(tree)
     for node in ast.walk(tree):
         if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef):
             node.name = "_"
             node.decorator_list = []
+            _strip_docstring(node)
     return ast.unparse(tree)
+
+
+def _unwrap(fn: object) -> Callable[..., object] | None:
+    """The underlying function behind a ``functools.partial`` (or ``fn`` itself), if callable."""
+    if isinstance(fn, functools.partial):
+        fn = fn.func
+    return fn if callable(fn) else None
+
+
+def _first_party_callees(fn: Callable[..., object]) -> list[Callable[..., object]]:
+    """First-party (``sabia.*``) functions called by name within ``fn``'s body.
+
+    Calls via attribute access (``pl.col``, ``expr.over``) are skipped -- those are third-party and
+    pinned by the Polars version already in the payload. Only bare-name calls that resolve, through
+    ``fn``'s globals, to a callable defined in a ``sabia`` module are followed.
+    """
+    tree = ast.parse(textwrap.dedent(inspect.getsource(fn)))
+    names = {
+        node.func.id
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
+    }
+    namespace = getattr(fn, "__globals__", {})
+    callees: list[Callable[..., object]] = []
+    for name in names:
+        obj = namespace.get(name)
+        if callable(obj) and getattr(obj, "__module__", "").startswith("sabia"):
+            callees.append(obj)
+    return callees
+
+
+def _transitive_sources(roots: Iterable[object]) -> list[str]:
+    """Normalized source of every ``root`` and, transitively, every first-party helper it calls.
+
+    Hashing only the top-level function (the old behavior) left helper bodies -- ``safe_div``, the
+    Rogers-Satchell ``_rs_term``, the cross-sectional reduction -- outside the fingerprint, so a
+    change to their math would not trip the manifest gate. Following first-party callees closes that
+    gap: the fingerprint covers the whole formula, not just its entry point. Sorted by qualified
+    name so the payload is order-independent.
+    """
+    sources: dict[str, str] = {}
+    stack = [fn for fn in (_unwrap(root) for root in roots) if fn is not None]
+    while stack:
+        fn = stack.pop()
+        key = f"{fn.__module__}.{fn.__qualname__}"
+        if key in sources:
+            continue
+        sources[key] = _normalized_source(fn)
+        stack.extend(_first_party_callees(fn))
+    return [source for _, source in sorted(sources.items())]
 
 
 def feature_fingerprint(
     fn: Callable[..., pl.Expr],
     params: Mapping[str, object],
+    *extra_fns: object,
     polars_version: str = pl.__version__,
 ) -> str:
     """Content hash over normalized formula source + params + the pinned Polars version (3.4).
 
-    Recorded alongside stored outputs so train-vs-serve identity is provable, not assumed. CI
-    fails if a fingerprint changes without a version bump.
+    The hash covers ``fn`` and any ``extra_fns`` (e.g. a cross-sectional feature's reduction
+    builder) with the transitive closure of first-party helpers each calls, so the whole formula is
+    fingerprinted -- not just its entry point. Recorded alongside stored outputs so train-vs-serve
+    identity is provable, not assumed. CI fails if a fingerprint changes without a version bump.
     """
     payload = " ".join(
         (
-            _normalized_source(fn),
+            *_transitive_sources((fn, *extra_fns)),
             json.dumps(params, sort_keys=True, default=str),
             polars_version,
         )
