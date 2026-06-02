@@ -6,6 +6,8 @@ All notable changes to `sabia` are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-06-02
+
 ### Changed — v5 architecture (breaking; pre-1.0)
 
 The library moves from the v2.1 contract (factories return `pl.Expr`, take string column names) to
