@@ -6,6 +6,8 @@ All notable changes to `sabia` are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-06-02
+
 Acting on an external audit: closing gaps where the code did not honor its own contracts, plus
 ergonomics. Breaking renames are pre-1.0 churn (the manifest lock is regenerated in the same change).
 

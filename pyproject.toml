@@ -1,6 +1,6 @@
 [project]
 name = "sabia"
-version = "0.2.0"
+version = "0.3.0"
 description = "Polars-native technical features for trading pipelines — pure, point-in-time, online-ready"
 readme = "README.md"
 license = "MIT"

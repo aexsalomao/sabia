@@ -83,7 +83,7 @@ from sabia.typing import (
 )
 from sabia.validate import FrameAudit, SabiaValidationError, audit_frame, validate
 
-__version__ = "0.2.0"
+__version__ = "0.3.0"
 
 
 def compute(
