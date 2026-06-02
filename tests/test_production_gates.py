@@ -80,10 +80,16 @@ def test_evaluate_eager_equals_lazy_for_every_feature(
 
 
 def _multi_chunk_panel() -> pl.DataFrame:
-    # Concatenate per-symbol single-chunk frames without rechunking so the result has >1 chunk.
-    # This is the layout that trips a kernel reading a raw contiguous buffer across chunk seams.
-    parts = [make_series(600, seed=i, symbol=s) for i, s in enumerate(("AAA", "BBB", "CCC"))]
-    return pl.concat(parts, rechunk=False).sort(SYMBOL, "timestamp")
+    # Per-symbol frames are each a single chunk and individually timestamp-sorted; concatenating
+    # them in symbol order (without rechunking) is already globally sorted by (symbol, timestamp)
+    # AND keeps one chunk per symbol -- the layout that trips a kernel reading a raw contiguous
+    # buffer across chunk seams. A global ``.sort()`` here would rechunk to a single chunk and
+    # silently defeat the gate (observed across Polars/Python combinations in CI).
+    parts = [
+        make_series(600, seed=i, symbol=s).sort("timestamp")
+        for i, s in enumerate(("AAA", "BBB", "CCC"))
+    ]
+    return pl.concat(parts, rechunk=False)
 
 
 _CHUNKED_PANEL = _multi_chunk_panel()
