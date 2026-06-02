@@ -2,17 +2,14 @@
 
 import polars as pl
 import pytest
+from synthetic import SCHEMA
 
-from sabia.registry import RegisteredFeature, Registry
-from sabia.spec import (
-    Column,
-    Cost,
-    DataTier,
-    Family,
-    FeatureSpec,
-    Horizon,
-    Recurrence,
-)
+from sabia.params import FrozenParams
+from sabia.references import Citation, Reference
+from sabia.registry import BoundFeature, Registry, bind_feature
+from sabia.schema import BarSchema
+from sabia.spec import Cost, DataTier, Evidence, Family, Horizon, Recurrence, Unit
+from sabia.typing import CLOSE_TR
 
 
 def _feature(
@@ -21,25 +18,28 @@ def _feature(
     version: int = 1,
     band: Horizon = Horizon.MEDIUM,
     tier: DataTier = DataTier.DAILY,
-) -> RegisteredFeature:
-    spec = FeatureSpec(
+) -> BoundFeature:
+    def build(s: BarSchema) -> pl.Expr:
+        return pl.col(s.column(CLOSE_TR)).alias(name)
+
+    return bind_feature(
+        build,
         name=name,
         version=version,
-        fingerprint="deadbeef",
         family=Family.MOMENTUM,
-        native_band=frozenset({band}),
+        native_band=(band,),
         lookback=14,
         min_history=14,
         recurrence=Recurrence.FINITE,
-        effective_warmup=0,
+        effective_warmup=14,
         cost_class=Cost.LINEAR,
         data_tier=tier,
-        inputs=frozenset({Column.CLOSE}),
-        output_dtype=pl.Float64(),
-        citation="test",
-        params={},
+        input_roles=(CLOSE_TR,),
+        output_unit=Unit.UNITLESS,
+        evidence=Evidence.FORMULA_ONLY,
+        citation=Citation(formula=Reference("test", 2024)),
+        params=FrozenParams(),
     )
-    return RegisteredFeature(spec=spec, build=lambda: pl.col(Column.CLOSE))
 
 
 def test_default_registry_contains_shipped_features() -> None:
@@ -103,6 +103,6 @@ def test_contains_checks_name() -> None:
     assert "missing" not in reg
 
 
-def test_build_returns_expression() -> None:
+def test_expr_returns_expression() -> None:
     feature = _feature("rsi_14")
-    assert isinstance(feature.build(), pl.Expr)
+    assert isinstance(feature.expr(SCHEMA), pl.Expr)

@@ -1,30 +1,39 @@
-# The feature registry: a constructable catalog mapping (name, version) -> spec + bound builder.
-# Built by EXPLICIT collection (FEATURES.md 6) -- there is no import-time decorator mutating a
-# global singleton, so the registry is embeddable and test-isolatable by construction.
+# The feature registry: a constructable, freezable catalog of bound features. Built by EXPLICIT
+# collection (FEATURES.md 7) -- no import-time decorator mutates a global, so the registry is
+# embeddable and test-isolatable by construction. `bind_feature` is the single construction point
+# for a shipped feature: it builds the spec (incl. the fingerprint) and wraps it in a BoundFeature.
 
 from __future__ import annotations
 
 import importlib
 import re
-from collections.abc import Callable, Iterable, Iterator, Mapping
-from dataclasses import dataclass
+from collections.abc import Callable, Iterable, Iterator
 
 import polars as pl
 
+from sabia.params import FrozenParams
+from sabia.references import Citation
+from sabia.schema import BarSchema
 from sabia.spec import (
     NAME_PATTERN,
-    Column,
+    REQUIRE_FULL_WINDOW,
+    V1_RECURRENCES,
+    BoundFeature,
     Cost,
     DataTier,
+    Evidence,
     Family,
     FeatureSpec,
     Horizon,
+    NullPolicy,
     Recurrence,
+    Unit,
     feature_fingerprint,
 )
+from sabia.typing import FeatureRef, InputRole
 
-# Family modules whose FEATURES tuples make up Registry.default(). Appended as each family lands so
-# the default catalog grows explicitly -- never via import side effects.
+# Family modules whose FEATURES tuples make up Registry.default(). Appended explicitly so the
+# default catalog grows by intent -- never via import side effects.
 _FAMILY_MODULES: tuple[str, ...] = (
     "sabia.returns",
     "sabia.volatility",
@@ -39,7 +48,6 @@ _FAMILY_MODULES: tuple[str, ...] = (
 
 _NAME_RE = re.compile(NAME_PATTERN)
 
-# Most features output Float64; a module-level singleton avoids a call in argument defaults.
 _DEFAULT_OUTPUT_DTYPE: pl.DataType = pl.Float64()
 
 # Intermediate column holding a cross-sectional feature's per-symbol signal during two-pass
@@ -47,49 +55,49 @@ _DEFAULT_OUTPUT_DTYPE: pl.DataType = pl.Float64()
 XS_SIGNAL_COLUMN = "__sabia_xs_signal__"
 
 
-@dataclass(frozen=True, slots=True)
-class RegisteredFeature:
-    """One concrete, fully-parameterized feature: its spec plus a builder for the canonical expr.
-
-    ``build`` is zero-arg because the parameterization (period, window, ...) is frozen into the
-    spec; it returns the expression over the canonical OHLCV columns. Callers who need custom
-    column names call the family function directly.
-
-    ``signal`` is set only for cross-sectional features: it builds the per-symbol signal that
-    ``evaluate`` materializes (as ``XS_SIGNAL_COLUMN``) before ``build`` reduces it across the
-    cross-section. Time-series features leave it ``None`` and evaluate in a single pass.
-    """
-
-    spec: FeatureSpec
-    build: Callable[[], pl.Expr]
-    signal: Callable[[], pl.Expr] | None = None
+class FrozenRegistryError(RuntimeError):
+    """Raised when mutating a frozen registry (FEATURES.md 7 -- built-ins are not overridable)."""
 
 
 class Registry:
-    """A catalog of features queryable by horizon, data tier, or arbitrary predicate.
+    """A catalog of bound features queryable by horizon, data tier, or arbitrary predicate.
 
-    Construct one explicitly from ``RegisteredFeature`` objects, or use ``Registry.default`` for the
-    shipped set. ``where`` / ``available`` return new (sub-)registries, so queries compose.
+    Construct one explicitly from ``BoundFeature`` objects, or use ``Registry.default`` for the
+    shipped set (assembled then frozen). ``where`` / ``available`` return new (sub-)registries, so
+    queries compose. A frozen registry rejects further ``add``.
     """
 
-    def __init__(self, features: Iterable[RegisteredFeature] = ()) -> None:
-        self._by_key: dict[tuple[str, int], RegisteredFeature] = {}
+    def __init__(self, features: Iterable[BoundFeature] = (), *, frozen: bool = False) -> None:
+        self._by_key: dict[tuple[str, int], BoundFeature] = {}
+        self._frozen = False
         for feature in features:
             self.add(feature)
+        self._frozen = frozen
 
-    def add(self, feature: RegisteredFeature) -> None:
-        """Register a feature. Raises on a malformed name or a duplicate ``(name, version)``."""
+    def add(self, feature: BoundFeature) -> None:
+        """Register a feature. Raises on bad name, dup key, banned recurrence, or frozen reg."""
+        if self._frozen:
+            raise FrozenRegistryError("cannot add to a frozen registry")
         spec = feature.spec
         if not _NAME_RE.match(spec.name):
             raise ValueError(
                 f"feature name {spec.name!r} is not snake_case (pattern {NAME_PATTERN})"
+            )
+        if spec.recurrence not in V1_RECURRENCES:
+            raise ValueError(
+                f"feature {spec.name!r} has recurrence {spec.recurrence.value}, banned in v1 "
+                f"(only {sorted(r.value for r in V1_RECURRENCES)})"
             )
         key = (spec.name, spec.version)
         if key in self._by_key:
             raise ValueError(f"duplicate feature {spec.name!r} version {spec.version}")
         self._by_key[key] = feature
 
-    def get(self, name: str, version: int | None = None) -> RegisteredFeature:
+    def freeze(self) -> Registry:
+        """Return a new frozen registry over the same features (FEATURES.md 7)."""
+        return Registry(self._by_key.values(), frozen=True)
+
+    def get(self, name: str, version: int | None = None) -> BoundFeature:
         """Look up a feature by name; defaults to the highest registered version."""
         versions = sorted(v for (n, v) in self._by_key if n == name)
         if not versions:
@@ -116,7 +124,7 @@ class Registry:
         """All specs, in registration order -- the harness parametrizes over this."""
         return [f.spec for f in self._by_key.values()]
 
-    def features(self) -> list[RegisteredFeature]:
+    def features(self) -> list[BoundFeature]:
         return list(self._by_key.values())
 
     def names(self) -> list[str]:
@@ -125,25 +133,29 @@ class Registry:
     def __len__(self) -> int:
         return len(self._by_key)
 
-    def __iter__(self) -> Iterator[RegisteredFeature]:
+    def __iter__(self) -> Iterator[BoundFeature]:
         return iter(self._by_key.values())
 
     def __contains__(self, name: object) -> bool:
         return any(n == name for (n, _) in self._by_key)
 
     @classmethod
-    def default(cls) -> Registry:
-        """Assemble the shipped feature set by importing each family module's ``FEATURES`` tuple."""
-        features: list[RegisteredFeature] = []
-        for module_name in _FAMILY_MODULES:
+    def from_modules(cls, module_names: Iterable[str]) -> Registry:
+        """Assemble a registry by importing each module's ``FEATURES`` tuple (not yet frozen)."""
+        features: list[BoundFeature] = []
+        for module_name in module_names:
             module = importlib.import_module(module_name)
             features.extend(module.FEATURES)
         return cls(features)
 
+    @classmethod
+    def default(cls) -> Registry:
+        """The shipped feature set, assembled from the family modules and frozen (FEATURES.md 7)."""
+        return cls.from_modules(_FAMILY_MODULES).freeze()
 
-def make_feature(
-    fn: Callable[..., pl.Expr],
-    build: Callable[[], pl.Expr],
+
+def bind_feature(
+    build: Callable[[BarSchema], pl.Expr],
     *,
     name: str,
     family: Family,
@@ -153,29 +165,42 @@ def make_feature(
     recurrence: Recurrence,
     effective_warmup: int,
     cost_class: Cost,
-    inputs: Iterable[Column],
-    citation: str,
-    params: Mapping[str, object],
+    input_roles: Iterable[InputRole],
+    output_unit: Unit,
+    evidence: Evidence,
+    citation: Citation,
+    params: FrozenParams,
     output_dtype: pl.DataType = _DEFAULT_OUTPUT_DTYPE,
+    output_range: tuple[float, float] | None = None,
+    null_policy: NullPolicy = REQUIRE_FULL_WINDOW,
     data_tier: DataTier = DataTier.DAILY,
+    dependencies: Iterable[FeatureRef] = (),
+    requires_universe: bool = False,
+    requires_complete_panel: bool = False,
     version: int = 1,
-    signal: Callable[[], pl.Expr] | None = None,
-) -> RegisteredFeature:
-    """Build a ``RegisteredFeature``: the single construction point for shipped features.
+    signal: Callable[[BarSchema], pl.Expr] | None = None,
+) -> BoundFeature:
+    """Construct a ``BoundFeature``: the single construction point for shipped features (4.1, 4.2).
 
-    ``fn`` is the formula function (used for the fingerprint); ``build`` is the zero-arg closure
-    producing the canonical expression. ``signal`` is the per-symbol pre-pass for cross-sectional
-    features (see ``RegisteredFeature``). The fingerprint is derived from ``fn``, ``params``, and
-    the ``build``/``signal`` builders -- so a cross-sectional feature's reduction is hashed too, not
-    just its signal -- making train-vs-serve identity provable (FEATURES.md 3.4).
+    ``build`` is the schema-resolving formula closure (and the fingerprint subject); ``signal`` is
+    the per-symbol pre-pass for cross-sectional features. The fingerprint folds the params, roles,
+    and dependency fingerprints together with the transitive source of ``build``/``signal`` -- so a
+    role swap or a helper-math change is provable at the manifest gate (FEATURES.md 4.4).
     """
-    extra_fns: list[object] = [build]
-    if signal is not None:
-        extra_fns.append(signal)
+    roles = frozenset(input_roles)
+    deps = tuple(dependencies)
     spec = FeatureSpec(
         name=name,
         version=version,
-        fingerprint=feature_fingerprint(fn, params, *extra_fns),
+        fingerprint=feature_fingerprint(
+            canonical_id=name,
+            version=version,
+            params=params,
+            input_roles=roles,
+            build=build,
+            signal=signal,
+            dependencies=deps,
+        ),
         family=family,
         native_band=frozenset(native_band),
         lookback=lookback,
@@ -184,15 +209,24 @@ def make_feature(
         effective_warmup=effective_warmup,
         cost_class=cost_class,
         data_tier=data_tier,
-        inputs=frozenset(inputs),
+        input_roles=roles,
+        null_policy=null_policy,
         output_dtype=output_dtype,
+        output_unit=output_unit,
+        output_range=output_range,
+        evidence=evidence,
+        dependencies=deps,
+        requires_universe=requires_universe,
+        requires_complete_panel=requires_complete_panel,
         citation=citation,
-        params=dict(params),
+        params=params,
     )
-    return RegisteredFeature(spec=spec, build=build, signal=signal)
+    return BoundFeature(spec=spec, build=build, signal=signal)
 
 
-def evaluate(frame: pl.DataFrame | pl.LazyFrame, feature: RegisteredFeature) -> pl.Series:
+def evaluate(
+    frame: pl.DataFrame | pl.LazyFrame, feature: BoundFeature, schema: BarSchema
+) -> pl.Series:
     """Evaluate one feature to a Series, two-pass for cross-sectional features.
 
     A cross-sectional feature's per-symbol ``signal`` is materialized first (Polars cannot nest
@@ -201,14 +235,19 @@ def evaluate(frame: pl.DataFrame | pl.LazyFrame, feature: RegisteredFeature) -> 
     """
     lf = frame.lazy()
     if feature.signal is not None:
-        lf = lf.with_columns(feature.signal().alias(XS_SIGNAL_COLUMN))
-    return lf.select(feature.build()).collect().to_series()
+        lf = lf.with_columns(feature.signal(schema).alias(XS_SIGNAL_COLUMN))
+    # Alias to the feature name unconditionally: a time-series ``build`` already aliases itself, but
+    # a cross-sectional reduction returns a bare (possibly unnamed) expression, so without this the
+    # output Series would carry an incidental name (``__sabia_xs_signal__`` / ``literal``) and two
+    # such features would collide by name in ``compute`` (FEATURES.md 4.3).
+    return lf.select(feature.expr(schema).alias(feature.spec.name)).collect().to_series()
 
 
 __all__ = [
-    "RegisteredFeature",
-    "Registry",
     "XS_SIGNAL_COLUMN",
+    "BoundFeature",
+    "FrozenRegistryError",
+    "Registry",
+    "bind_feature",
     "evaluate",
-    "make_feature",
 ]

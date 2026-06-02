@@ -1,8 +1,10 @@
-"""Deterministic OHLCV generators for the test suite (seeded; no runtime randomness in sabia).
+"""Deterministic OHLCV generators + the canonical test schema (seeded; no runtime randomness).
 
 A single-symbol series and a multi-symbol panel sharing one timestamp vector (so the panel is a
 complete cross-section). All frames satisfy the input contract: sorted, unique, tz-aware-UTC
-timestamps, low <= open/close <= high, positive volume.
+timestamps, low <= open/close <= high, positive volume. ``SCHEMA`` maps every role the shipped
+features declare onto these physical columns (the same physical column backs several adjustment
+roles, since the synthetic data carries one basis).
 """
 
 from __future__ import annotations
@@ -12,7 +14,49 @@ from datetime import UTC, datetime, timedelta
 import numpy as np
 import polars as pl
 
-from sabia.spec import Column
+from sabia.schema import BarSchema
+from sabia.typing import (
+    CLOSE_RAW,
+    CLOSE_SPLIT,
+    CLOSE_TR,
+    DVOL_RAW,
+    HIGH_SPLIT,
+    LOW_SPLIT,
+    OPEN_SPLIT,
+    OPEN_TR,
+    VOLUME_RAW,
+    VOLUME_SPLIT,
+    VWAP_SPLIT,
+)
+
+# Physical column names (the canonical timestamp/symbol names plus arbitrary OHLCV names).
+TIMESTAMP = "timestamp"
+SYMBOL = "symbol"
+OPEN = "open"
+HIGH = "high"
+LOW = "low"
+CLOSE = "close"
+VOLUME = "volume"
+VWAP = "vwap"
+DOLLAR_VOLUME = "dollar_volume"
+
+# One schema for the whole suite: every role resolves to its physical column. The synthetic frames
+# carry a single adjustment basis, so tr / split / raw of a field all map to the same column.
+SCHEMA = BarSchema(
+    roles={
+        CLOSE_TR: CLOSE,
+        CLOSE_SPLIT: CLOSE,
+        CLOSE_RAW: CLOSE,
+        OPEN_TR: OPEN,
+        OPEN_SPLIT: OPEN,
+        HIGH_SPLIT: HIGH,
+        LOW_SPLIT: LOW,
+        VWAP_SPLIT: VWAP,
+        VOLUME_SPLIT: VOLUME,
+        VOLUME_RAW: VOLUME,
+        DVOL_RAW: DOLLAR_VOLUME,
+    }
+)
 
 _START = datetime(2020, 1, 1, tzinfo=UTC)
 
@@ -32,11 +76,13 @@ def _ohlcv_columns(n: int, seed: int) -> dict[str, np.ndarray]:
     low = lo_base * (1.0 - np.abs(rng.normal(0.0, 0.004, n)))
     volume = rng.integers(100_000, 1_000_000, n).astype(np.float64)
     return {
-        Column.OPEN: open_,
-        Column.HIGH: high,
-        Column.LOW: low,
-        Column.CLOSE: close,
-        Column.VOLUME: volume,
+        OPEN: open_,
+        HIGH: high,
+        LOW: low,
+        CLOSE: close,
+        VOLUME: volume,
+        VWAP: (high + low + close) / 3.0,
+        DOLLAR_VOLUME: close * volume,
     }
 
 
@@ -48,8 +94,8 @@ def make_series(n: int, *, seed: int = 0, offset: int = 0, symbol: str = "AAA") 
     """
     return pl.DataFrame(
         {
-            Column.TIMESTAMP: _timestamps(n, offset=offset),
-            Column.SYMBOL: [symbol] * n,
+            TIMESTAMP: _timestamps(n, offset=offset),
+            SYMBOL: [symbol] * n,
             **_ohlcv_columns(n, seed),
         }
     )
@@ -63,14 +109,14 @@ def make_panel(
     frames = [
         pl.DataFrame(
             {
-                Column.TIMESTAMP: timestamps,
-                Column.SYMBOL: [symbol] * n,
+                TIMESTAMP: timestamps,
+                SYMBOL: [symbol] * n,
                 **_ohlcv_columns(n, seed + i),
             }
         )
         for i, symbol in enumerate(symbols)
     ]
-    return pl.concat(frames).sort(Column.SYMBOL, Column.TIMESTAMP)
+    return pl.concat(frames).sort(SYMBOL, TIMESTAMP)
 
 
 def append_future(base: pl.DataFrame, m: int, *, seed: int = 99) -> pl.DataFrame:

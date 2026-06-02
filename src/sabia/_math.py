@@ -22,4 +22,14 @@ def safe_sqrt(expr: pl.Expr) -> pl.Expr:
     return pl.when(expr < 0).then(None).otherwise(expr.sqrt())
 
 
-__all__ = ["safe_div", "safe_log", "safe_sqrt"]
+def log_return(current: pl.Expr, base: pl.Expr) -> pl.Expr:
+    """``ln(current / base)``, or null on a degenerate ratio -- never inf or NaN.
+
+    Both guards are required: ``safe_div`` nulls a zero base (which raw ``/`` would turn into inf),
+    and ``safe_log`` nulls a non-positive ratio (which raw ``.log()`` would turn into NaN). The
+    single source of truth for every close-to-close return in the library (FEATURES.md 4.5).
+    """
+    return safe_log(safe_div(current, base))
+
+
+__all__ = ["log_return", "safe_div", "safe_log", "safe_sqrt"]

@@ -1,228 +1,322 @@
-# Momentum family: oscillators and rate-of-change measures of directional persistence.
-# All features are strictly trailing and panel-safe -- the whole expression is evaluated within
-# each symbol via .over(symbol), so windows never bleed across symbols.
+# Momentum family: oscillators and rate-of-change measures of directional persistence. Close-based
+# measures (RSI, ROC, momentum) use close@tr; range oscillators (Williams %R, stochastic, CCI) use
+# split-only OHLC (FEATURES.md 2.2). RSI is RECURSIVE_DECAY (emit null until effective_warmup); the
+# rest are FINITE. All strictly trailing and panel-safe via .over(symbol).
 
 from __future__ import annotations
 
-from functools import partial
+from collections.abc import Callable
 
 import polars as pl
 
-from sabia._expr import grouped
-from sabia._math import safe_div
-from sabia.registry import RegisteredFeature, make_feature
-from sabia.spec import Column, Cost, Family, Horizon, Recurrence, ewm_effective_warmup
+from sabia._expr import emit_after, grouped
+from sabia._math import safe_div, safe_log
+from sabia.naming import naming
+from sabia.params import FrozenParams
+from sabia.references import Citation, Reference
+from sabia.registry import BoundFeature, bind_feature
+from sabia.schema import BarSchema
+from sabia.spec import (
+    Cost,
+    Evidence,
+    Family,
+    Horizon,
+    Recurrence,
+    Unit,
+    ewm_effective_warmup,
+)
+from sabia.typing import (
+    CLOSE_SPLIT,
+    CLOSE_TR,
+    HIGH_SPLIT,
+    LOW_SPLIT,
+    Adjustment,
+    PriceRole,
+)
 
 _BANDS = (Horizon.SHORT, Horizon.MEDIUM)
+_CCI_SCALE = 0.015  # Lambert's constant, so ~70-80% of CCI values fall in [-100, 100].
 
 
-def rsi(
-    close: str = Column.CLOSE, *, period: int = 14, symbol: str | None = Column.SYMBOL
-) -> pl.Expr:
-    """Wilder's Relative Strength Index, in [0, 100]. Strictly trailing, RECURSIVE.
+def rsi(*, period: int = 14, close: PriceRole = CLOSE_TR) -> BoundFeature:
+    """Wilder's RSI, in [0, 100]. RECURSIVE_DECAY (Wilder RMA = EWM, alpha=1/period).
 
-    A flat series (no gains and no losses) yields ``null`` -- there is no information to oscillate
-    on (FEATURES.md 3.5); a series of pure gains saturates at 100, pure losses at 0. Wilder's RMA
-    smoothing is an EWM with ``alpha = 1 / period`` and ``adjust=False``. Citation: Wilder (1978).
+    A flat series (no gains, no losses) yields ``null``; pure gains saturate at 100, pure losses
+    at 0 (FEATURES.md 4.5). Citation: Wilder (1978).
     """
-    delta = pl.col(close).diff()
-    gain = delta.clip(lower_bound=0)
-    loss = (-delta).clip(lower_bound=0)
-    avg_gain = gain.ewm_mean(alpha=1 / period, adjust=False, min_samples=period)
-    avg_loss = loss.ewm_mean(alpha=1 / period, adjust=False, min_samples=period)
-    rs = avg_gain / avg_loss
-    value = (
-        pl.when((avg_gain == 0) & (avg_loss == 0))
-        .then(None)
-        .when(avg_loss == 0)
-        .then(pl.lit(100.0))
-        .otherwise(100 - 100 / (1 + rs))
+    name = naming("rsi", period, role=close, default_adjustment=Adjustment.TR)
+    warmup = ewm_effective_warmup(1 / period)
+    alpha = 1 / period
+
+    def build(s: BarSchema) -> pl.Expr:
+        delta = pl.col(s.column(close)).diff()
+        gain = delta.clip(lower_bound=0).ewm_mean(alpha=alpha, adjust=False, min_samples=period)
+        loss = (-delta).clip(lower_bound=0).ewm_mean(alpha=alpha, adjust=False, min_samples=period)
+        rs = gain / loss
+        value = (
+            pl.when((gain == 0) & (loss == 0))
+            .then(None)
+            .when(loss == 0)
+            .then(pl.lit(100.0))
+            .otherwise(100 - 100 / (1 + rs))
+        )
+        return emit_after(grouped(value, s.symbol_col), warmup, s.symbol_col).alias(name)
+
+    return bind_feature(
+        build,
+        name=name,
+        family=Family.MOMENTUM,
+        native_band=_BANDS,
+        lookback=period,
+        min_history=warmup,
+        recurrence=Recurrence.RECURSIVE_DECAY,
+        effective_warmup=warmup,
+        cost_class=Cost.O1,
+        input_roles=(close,),
+        output_unit=Unit.INDEX_0_100,
+        output_range=(0.0, 100.0),
+        evidence=Evidence.TA_CANON,
+        citation=Citation(formula=Reference("Wilder", 1978)),
+        params=FrozenParams(period=period),
     )
-    return grouped(value, symbol).alias(f"rsi_{period}")
 
 
-def roc(
-    close: str = Column.CLOSE, *, window: int = 10, symbol: str | None = Column.SYMBOL
-) -> pl.Expr:
-    """Rate of change: percent return over ``window`` bars. A zero base yields null. FINITE."""
-    base = pl.col(close).shift(window)
-    value = safe_div(pl.col(close) - base, base) * 100
-    return grouped(value, symbol).alias(f"roc_{window}")
+def roc(*, window: int = 21, close: PriceRole = CLOSE_TR) -> BoundFeature:
+    """Rate of change: ``close / close.shift(window) - 1``. FINITE, RATIO. Zero base yields null."""
+    name = naming("roc", window, role=close, default_adjustment=Adjustment.TR)
+
+    def build(s: BarSchema) -> pl.Expr:
+        c = pl.col(s.column(close))
+        value = safe_div(c, c.shift(window)) - 1
+        return grouped(value, s.symbol_col).alias(name)
+
+    return bind_feature(
+        build,
+        name=name,
+        family=Family.MOMENTUM,
+        native_band=(Horizon.SHORT, Horizon.MEDIUM),
+        lookback=window,
+        min_history=window + 1,
+        recurrence=Recurrence.FINITE,
+        effective_warmup=window + 1,
+        cost_class=Cost.O1,
+        input_roles=(close,),
+        output_unit=Unit.RATIO,
+        evidence=Evidence.TA_CANON,
+        citation=Citation(formula=Reference("Pring", 2002)),
+        params=FrozenParams(window=window),
+    )
+
+
+def mom(*, formation: int = 252, skip: int = 21, close: PriceRole = CLOSE_TR) -> BoundFeature:
+    """Time-series momentum: ``ln(close.shift(skip) / close.shift(formation))``. FINITE, LOG_RETURN.
+
+    ``mom_252_21`` is the canonical 12-1 momentum: a 252-bar formation, the most recent 21 bars
+    skipped to avoid short-term reversal. Citation: Jegadeesh & Titman (1993).
+    """
+    name = naming("mom", formation, skip, role=close, default_adjustment=Adjustment.TR)
+
+    def build(s: BarSchema) -> pl.Expr:
+        c = pl.col(s.column(close))
+        value = safe_log(safe_div(c.shift(skip), c.shift(formation)))
+        return grouped(value, s.symbol_col).alias(name)
+
+    return bind_feature(
+        build,
+        name=name,
+        family=Family.MOMENTUM,
+        native_band=(Horizon.LONG,),
+        lookback=formation,
+        min_history=formation + 1,
+        recurrence=Recurrence.FINITE,
+        effective_warmup=formation + 1,
+        cost_class=Cost.O1,
+        input_roles=(close,),
+        output_unit=Unit.LOG_RETURN,
+        evidence=Evidence.ACADEMIC_REPLICATED,
+        citation=Citation(
+            formula=Reference("Jegadeesh & Titman", 1993),
+            empirical=(Reference("Asness, Moskowitz & Pedersen", 2013),),
+        ),
+        params=FrozenParams(formation=formation, skip=skip),
+    )
 
 
 def williams_r(
-    high: str = Column.HIGH,
-    low: str = Column.LOW,
-    close: str = Column.CLOSE,
     *,
     window: int = 14,
-    symbol: str | None = Column.SYMBOL,
-) -> pl.Expr:
+    high: PriceRole = HIGH_SPLIT,
+    low: PriceRole = LOW_SPLIT,
+    close: PriceRole = CLOSE_SPLIT,
+) -> BoundFeature:
     """Williams %R, in [-100, 0]. A flat range yields null. FINITE. Citation: Williams (1979)."""
-    highest, lowest = _range_extremes(high, low, window)
-    value = safe_div(highest - pl.col(close), highest - lowest) * -100
-    return grouped(value, symbol).alias(f"williams_r_{window}")
+    name = naming("williams_r", window)
 
+    def build(s: BarSchema) -> pl.Expr:
+        highest, lowest = _range_extremes(s, high, low, window)
+        value = safe_div(highest - pl.col(s.column(close)), highest - lowest) * -100
+        return grouped(value, s.symbol_col).alias(name)
 
-def stoch_k(
-    high: str = Column.HIGH,
-    low: str = Column.LOW,
-    close: str = Column.CLOSE,
-    *,
-    window: int = 14,
-    symbol: str | None = Column.SYMBOL,
-) -> pl.Expr:
-    """Stochastic %K, in [0, 100]. A flat range yields null. FINITE. Citation: Lane (1984)."""
-    return grouped(_stoch_k_core(high, low, close, window), symbol).alias(f"stoch_k_{window}")
-
-
-def stoch_d(
-    high: str = Column.HIGH,
-    low: str = Column.LOW,
-    close: str = Column.CLOSE,
-    *,
-    window: int = 14,
-    smooth: int = 3,
-    symbol: str | None = Column.SYMBOL,
-) -> pl.Expr:
-    """Stochastic %D: an ``smooth``-bar SMA of %K. FINITE. Citation: Lane (1984)."""
-    k = _stoch_k_core(high, low, close, window)
-    value = k.rolling_mean(smooth, min_samples=smooth)
-    return grouped(value, symbol).alias(f"stoch_d_{window}_{smooth}")
-
-
-def macd(
-    close: str = Column.CLOSE,
-    *,
-    fast: int = 12,
-    slow: int = 26,
-    symbol: str | None = Column.SYMBOL,
-) -> pl.Expr:
-    """MACD line: fast EMA minus slow EMA of close. RECURSIVE. Citation: Appel (1979)."""
-    ema_fast = pl.col(close).ewm_mean(span=fast, adjust=False, min_samples=fast)
-    ema_slow = pl.col(close).ewm_mean(span=slow, adjust=False, min_samples=slow)
-    return grouped((ema_fast - ema_slow), symbol).alias(f"macd_{fast}_{slow}")
-
-
-def _range_extremes(high: str, low: str, window: int) -> tuple[pl.Expr, pl.Expr]:
-    return (
-        pl.col(high).rolling_max(window, min_samples=window),
-        pl.col(low).rolling_min(window, min_samples=window),
+    return _finite_osc(
+        build, name, window, (high, low, close), Reference("Williams", 1979), (-100.0, 0.0)
     )
 
 
-def _stoch_k_core(high: str, low: str, close: str, window: int) -> pl.Expr:
-    highest, lowest = _range_extremes(high, low, window)
-    return safe_div(pl.col(close) - lowest, highest - lowest) * 100
+def stoch_k(
+    *,
+    window: int = 14,
+    high: PriceRole = HIGH_SPLIT,
+    low: PriceRole = LOW_SPLIT,
+    close: PriceRole = CLOSE_SPLIT,
+) -> BoundFeature:
+    """Stochastic %K, in [0, 100]. A flat range yields null. FINITE. Citation: Lane (1984)."""
+    name = naming("stoch_k", window)
+
+    def build(s: BarSchema) -> pl.Expr:
+        return grouped(_stoch_k_core(s, high, low, close, window), s.symbol_col).alias(name)
+
+    return _finite_osc(
+        build, name, window, (high, low, close), Reference("Lane", 1984), (0.0, 100.0)
+    )
 
 
-def _rsi_warmup(period: int) -> int:
-    # RSI is an EWM applied to a diff(), so the analytic EWM warmup is one decay-bar short in
-    # practice; +period absorbs the diff offset and recursive accumulation (validated by parity).
-    return ewm_effective_warmup(1 / period) + period
+def stoch_d(
+    *,
+    window: int = 14,
+    smooth: int = 3,
+    high: PriceRole = HIGH_SPLIT,
+    low: PriceRole = LOW_SPLIT,
+    close: PriceRole = CLOSE_SPLIT,
+) -> BoundFeature:
+    """Stochastic %D: a ``smooth``-bar SMA of %K. FINITE. Citation: Lane (1984)."""
+    name = naming("stoch_d", window, smooth)
 
+    def build(s: BarSchema) -> pl.Expr:
+        k = _stoch_k_core(s, high, low, close, window)
+        value = k.rolling_mean(smooth, min_samples=smooth)
+        return grouped(value, s.symbol_col).alias(name)
 
-def _ewm_warmup(span: int) -> int:
-    return ewm_effective_warmup(2 / (span + 1)) + span
-
-
-FEATURES: tuple[RegisteredFeature, ...] = (
-    make_feature(
-        rsi,
-        build=partial(rsi, period=14),
-        name="rsi_14",
+    return bind_feature(
+        build,
+        name=name,
         family=Family.MOMENTUM,
         native_band=_BANDS,
-        lookback=14,
-        min_history=15,
-        recurrence=Recurrence.RECURSIVE,
-        effective_warmup=_rsi_warmup(14),
-        cost_class=Cost.O1,
-        inputs=(Column.CLOSE,),
-        citation="Wilder (1978)",
-        params={"period": 14},
-    ),
-    make_feature(
-        roc,
-        build=partial(roc, window=10),
-        name="roc_10",
-        family=Family.MOMENTUM,
-        native_band=(Horizon.SHORT,),
-        lookback=10,
-        min_history=11,
+        lookback=window,
+        min_history=window + smooth - 1,
         recurrence=Recurrence.FINITE,
-        effective_warmup=11,
-        cost_class=Cost.O1,
-        inputs=(Column.CLOSE,),
-        citation="rate of change",
-        params={"window": 10},
-    ),
-    make_feature(
-        williams_r,
-        build=partial(williams_r, window=14),
-        name="williams_r_14",
-        family=Family.MOMENTUM,
-        native_band=_BANDS,
-        lookback=14,
-        min_history=14,
-        recurrence=Recurrence.FINITE,
-        effective_warmup=14,
+        effective_warmup=window + smooth - 1,
         cost_class=Cost.LINEAR,
-        inputs=(Column.HIGH, Column.LOW, Column.CLOSE),
-        citation="Williams (1979)",
-        params={"window": 14},
-    ),
-    make_feature(
-        stoch_k,
-        build=partial(stoch_k, window=14),
-        name="stoch_k_14",
+        input_roles=(high, low, close),
+        output_unit=Unit.INDEX_0_100,
+        output_range=(0.0, 100.0),
+        evidence=Evidence.TA_CANON,
+        citation=Citation(formula=Reference("Lane", 1984)),
+        params=FrozenParams(window=window, smooth=smooth),
+    )
+
+
+def cci(
+    *,
+    window: int = 20,
+    high: PriceRole = HIGH_SPLIT,
+    low: PriceRole = LOW_SPLIT,
+    close: PriceRole = CLOSE_SPLIT,
+) -> BoundFeature:
+    """Commodity Channel Index: typical price vs its rolling mean, scaled by mean deviation. FINITE.
+
+    Uses the deviation-from-rolling-mean form of the mean absolute deviation (a pure-expression
+    variant). A flat window (zero deviation) yields null. Citation: Lambert (1980).
+    """
+    name = naming("cci", window)
+    # The mean-deviation is a rolling mean of (tp - sma_tp), and sma_tp is itself a window-bar
+    # rolling mean -- so the first non-null CCI lands only after 2*window-1 bars, not window.
+    min_history = 2 * window - 1
+
+    def build(s: BarSchema) -> pl.Expr:
+        tp = (pl.col(s.column(high)) + pl.col(s.column(low)) + pl.col(s.column(close))) / 3.0
+        sma_tp = tp.rolling_mean(window, min_samples=window)
+        mad = (tp - sma_tp).abs().rolling_mean(window, min_samples=window)
+        value = safe_div(tp - sma_tp, _CCI_SCALE * mad)
+        return grouped(value, s.symbol_col).alias(name)
+
+    return bind_feature(
+        build,
+        name=name,
         family=Family.MOMENTUM,
         native_band=_BANDS,
-        lookback=14,
-        min_history=14,
+        lookback=window,
+        min_history=min_history,
         recurrence=Recurrence.FINITE,
-        effective_warmup=14,
+        effective_warmup=min_history,
         cost_class=Cost.LINEAR,
-        inputs=(Column.HIGH, Column.LOW, Column.CLOSE),
-        citation="Lane (1984)",
-        params={"window": 14},
-    ),
-    make_feature(
-        stoch_d,
-        build=partial(stoch_d, window=14, smooth=3),
-        name="stoch_d_14_3",
+        input_roles=(high, low, close),
+        output_unit=Unit.UNITLESS,
+        evidence=Evidence.TA_CANON,
+        citation=Citation(formula=Reference("Lambert", 1980)),
+        params=FrozenParams(window=window),
+    )
+
+
+def _range_extremes(
+    s: BarSchema, high: PriceRole, low: PriceRole, window: int
+) -> tuple[pl.Expr, pl.Expr]:
+    return (
+        pl.col(s.column(high)).rolling_max(window, min_samples=window),
+        pl.col(s.column(low)).rolling_min(window, min_samples=window),
+    )
+
+
+def _stoch_k_core(
+    s: BarSchema, high: PriceRole, low: PriceRole, close: PriceRole, window: int
+) -> pl.Expr:
+    highest, lowest = _range_extremes(s, high, low, window)
+    return safe_div(pl.col(s.column(close)) - lowest, highest - lowest) * 100
+
+
+def _finite_osc(
+    build: Callable[[BarSchema], pl.Expr],
+    name: str,
+    window: int,
+    roles: tuple[PriceRole, ...],
+    formula: Reference,
+    output_range: tuple[float, float] | None,
+) -> BoundFeature:
+    unit = Unit.INDEX_0_100 if output_range is not None else Unit.UNITLESS
+    return bind_feature(
+        build,
+        name=name,
         family=Family.MOMENTUM,
         native_band=_BANDS,
-        lookback=14,
-        min_history=16,
+        lookback=window,
+        min_history=window,
         recurrence=Recurrence.FINITE,
-        effective_warmup=16,
+        effective_warmup=window,
         cost_class=Cost.LINEAR,
-        inputs=(Column.HIGH, Column.LOW, Column.CLOSE),
-        citation="Lane (1984)",
-        params={"window": 14, "smooth": 3},
-    ),
-    make_feature(
-        macd,
-        build=partial(macd, fast=12, slow=26),
-        name="macd_12_26",
-        family=Family.MOMENTUM,
-        native_band=(Horizon.MEDIUM,),
-        lookback=26,
-        min_history=26,
-        recurrence=Recurrence.RECURSIVE,
-        effective_warmup=_ewm_warmup(26),
-        cost_class=Cost.O1,
-        inputs=(Column.CLOSE,),
-        citation="Appel (1979)",
-        params={"fast": 12, "slow": 26},
-    ),
+        input_roles=roles,
+        output_unit=unit,
+        output_range=output_range,
+        evidence=Evidence.TA_CANON,
+        citation=Citation(formula=formula),
+        params=FrozenParams(window=window),
+    )
+
+
+FEATURES: tuple[BoundFeature, ...] = (
+    rsi(period=14),
+    roc(window=21),
+    roc(window=10),
+    mom(formation=252, skip=21),
+    williams_r(window=14),
+    stoch_k(window=14),
+    stoch_d(window=14, smooth=3),
+    cci(window=20),
 )
 
 
 __all__ = [
     "FEATURES",
-    "macd",
+    "cci",
+    "mom",
     "roc",
     "rsi",
     "stoch_d",

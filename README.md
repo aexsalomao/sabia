@@ -16,10 +16,12 @@ in `ruin`; signals live in `quale`. sabia computes features and nothing else.
 
 ## What it is
 
-Pure functions over OHLCV bars that return Polars expressions (`pl.Expr`) — strictly trailing,
-point-in-time correct, deterministic. **Batch-first, online-ready**: nothing streams in v1, but every
-feature declares the history it needs and is covered by a windowed-recompute parity test, so a future
-online engine is a thin wrapper rather than a rewrite.
+Pure factories over OHLCV bars. A factory binds its params and returns a `BoundFeature` — an immutable
+`.spec` plus a `.expr(schema) -> pl.Expr` that resolves **column roles** (`close@tr`, `high@split`)
+against a caller-supplied `BarSchema`. Features are strictly trailing, point-in-time correct, and
+deterministic. **Batch-first, online-ready**: nothing streams in v1, but every feature declares the
+history it needs and is covered by a windowed-recompute parity test, so a future online engine is a
+thin wrapper rather than a rewrite.
 
 ## Install
 
@@ -32,15 +34,23 @@ uv sync --extra dev
 ```python
 import polars as pl
 import sabia
+from sabia import BarSchema, PriceRole, PriceField, Adjustment
 
 frame = ...  # OHLCV LazyFrame/DataFrame; see sabia.validate for the input contract
 
-# Features group their trailing windows per symbol via a `symbol` column, so panels never bleed
-# across instruments. Features are pl.Expr — compose them lazily, or materialize eagerly:
-df = sabia.compute(frame, sabia.momentum.rsi(period=14), sabia.volatility.vol_yz(window=21))
+# A BarSchema maps your physical column names to roles. sabia adjusts nothing — you declare which
+# adjustment basis each column carries.
+schema = BarSchema(roles={
+    PriceRole(PriceField.OPEN,  Adjustment.SPLIT): "open",
+    PriceRole(PriceField.HIGH,  Adjustment.SPLIT): "high",
+    PriceRole(PriceField.LOW,   Adjustment.SPLIT): "low",
+    PriceRole(PriceField.CLOSE, Adjustment.SPLIT): "close",
+    PriceRole(PriceField.CLOSE, Adjustment.TR):    "close",
+})
 
-# A bare single series with no `symbol` column? Pass symbol=None to evaluate ungrouped:
-df = sabia.compute(frame, sabia.momentum.rsi(period=14, symbol=None))
+# Factories return BoundFeature objects; compute resolves roles against the schema and materializes:
+df = sabia.compute(frame, sabia.momentum.rsi(period=14), sabia.volatility.vol_yz(window=21),
+                   schema=schema)
 
 # Query the registry by horizon or data tier:
 reg = sabia.Registry.default()

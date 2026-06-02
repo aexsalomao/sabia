@@ -1,88 +1,110 @@
-# Seasonality family: deterministic calendar features of the bar timestamp. Pure Polars datetime
-# accessors -- vectorized, no per-row Python and no quando calls in the hot path (FEATURES.md 9).
-# All are causal: a bar's calendar position is known at t (unlike "last trading day of month",
-# which is only knowable after the month ends, so we use calendar day-of-month proximity instead).
+# Seasonality family: deterministic calendar position of the bar timestamp. Resolved through the
+# SessionCalendar seam (FEATURES.md 4.6, calendar.py) so no 252 or weekday convention is hardcoded
+# in feature code; v1's UtcCalendar is a calendar-day approximation, an exchange calendar arrives
+# later as a quando adapter. All causal: a bar's calendar position is known at t. Timestamp is a
+# fixed canonical column (FEATURES.md 2.1), so these features declare no input roles.
 
 from __future__ import annotations
 
+from collections.abc import Callable
+
 import polars as pl
 
-from sabia.registry import RegisteredFeature, make_feature
-from sabia.spec import Column, Cost, Family, Horizon, Recurrence
+from sabia.calendar import get_calendar
+from sabia.naming import naming
+from sabia.params import FrozenParams
+from sabia.references import Citation, Reference
+from sabia.registry import BoundFeature, bind_feature
+from sabia.schema import BarSchema
+from sabia.spec import Cost, Evidence, Family, Horizon, Recurrence, Unit
 
-_TURN_OF_MONTH_HEAD = 3
-_TURN_OF_MONTH_TAIL = 26
-
-
-def day_of_week(timestamp: str = Column.TIMESTAMP) -> pl.Expr:
-    """Day of week, Monday=1 .. Sunday=7. FINITE. Citation: French (1980) weekend effect."""
-    return pl.col(timestamp).dt.weekday().cast(pl.Int8).alias("day_of_week")
-
-
-def month_of_year(timestamp: str = Column.TIMESTAMP) -> pl.Expr:
-    """Calendar month, 1 .. 12. FINITE. Citation: Rozeff & Kinney (1976) January effect."""
-    return pl.col(timestamp).dt.month().cast(pl.Int8).alias("month_of_year")
+_INT8: pl.DataType = pl.Int8()
+_BOOL: pl.DataType = pl.Boolean()
 
 
-def turn_of_month(timestamp: str = Column.TIMESTAMP) -> pl.Expr:
-    """Turn-of-month flag: True near the month boundary by calendar day. FINITE. Ariel (1987)."""
-    day = pl.col(timestamp).dt.day()
-    return ((day <= _TURN_OF_MONTH_HEAD) | (day >= _TURN_OF_MONTH_TAIL)).alias("turn_of_month")
+def season_dow() -> BoundFeature:
+    """Session weekday, Monday=0 .. Sunday=6, via the frame's calendar. FINITE, UNITLESS.
 
+    Citation: French (1980), the weekend effect.
+    """
+    name = "season_dow"
 
-_INT8 = pl.Int8()
-_BOOL = pl.Boolean()
+    def build(s: BarSchema) -> pl.Expr:
+        cal = get_calendar(s.calendar)
+        return cal.session_weekday(pl.col(s.timestamp_col)).cast(_INT8).alias(name)
 
-FEATURES: tuple[RegisteredFeature, ...] = (
-    make_feature(
-        day_of_week,
-        build=day_of_week,
-        name="day_of_week",
-        family=Family.SEASONALITY,
-        native_band=(Horizon.SHORT,),
-        lookback=1,
-        min_history=1,
-        recurrence=Recurrence.FINITE,
-        effective_warmup=1,
-        cost_class=Cost.O1,
-        inputs=(Column.TIMESTAMP,),
+    return _calendar_feature(
+        build,
+        name=name,
+        bands=(Horizon.SHORT,),
         output_dtype=_INT8,
-        citation="French (1980)",
-        params={},
-    ),
-    make_feature(
-        month_of_year,
-        build=month_of_year,
-        name="month_of_year",
-        family=Family.SEASONALITY,
-        native_band=(Horizon.LONG,),
-        lookback=1,
-        min_history=1,
-        recurrence=Recurrence.FINITE,
-        effective_warmup=1,
-        cost_class=Cost.O1,
-        inputs=(Column.TIMESTAMP,),
-        output_dtype=_INT8,
-        citation="Rozeff & Kinney (1976)",
-        params={},
-    ),
-    make_feature(
-        turn_of_month,
-        build=turn_of_month,
-        name="turn_of_month",
-        family=Family.SEASONALITY,
-        native_band=(Horizon.SHORT, Horizon.MEDIUM),
-        lookback=1,
-        min_history=1,
-        recurrence=Recurrence.FINITE,
-        effective_warmup=1,
-        cost_class=Cost.O1,
-        inputs=(Column.TIMESTAMP,),
+        formula=Reference("French", 1980),
+        params=FrozenParams(),
+    )
+
+
+def season_tom(*, k: int = 3) -> BoundFeature:
+    """Turn-of-month flag: True within ``k`` sessions of a month boundary. FINITE, UNITLESS.
+
+    Causal proxy for the turn-of-month effect: the first ``k`` and last ``k`` calendar days of the
+    month (the last-session test uses ``days_in_month``, knowable at t, not a look-ahead). Citation:
+    Ariel (1987).
+    """
+    name = naming("season_tom", k)
+
+    def build(s: BarSchema) -> pl.Expr:
+        cal = get_calendar(s.calendar)
+        ts = pl.col(s.timestamp_col)
+        day = cal.day_of_month(ts)
+        value = (day <= k) | (day > cal.days_in_month(ts) - k)
+        return value.cast(_BOOL).alias(name)
+
+    return _calendar_feature(
+        build,
+        name=name,
+        bands=(Horizon.SHORT, Horizon.MEDIUM),
         output_dtype=_BOOL,
-        citation="Ariel (1987)",
-        params={},
-    ),
+        formula=Reference("Ariel", 1987),
+        params=FrozenParams(k=k),
+    )
+
+
+def _calendar_feature(
+    build: Callable[[BarSchema], pl.Expr],
+    *,
+    name: str,
+    bands: tuple[Horizon, ...],
+    output_dtype: pl.DataType,
+    formula: Reference,
+    params: FrozenParams,
+) -> BoundFeature:
+    return bind_feature(
+        build,
+        name=name,
+        family=Family.SEASONALITY,
+        native_band=bands,
+        lookback=1,
+        min_history=1,
+        recurrence=Recurrence.FINITE,
+        effective_warmup=1,
+        cost_class=Cost.O1,
+        input_roles=(),
+        output_unit=Unit.UNITLESS,
+        output_dtype=output_dtype,
+        evidence=Evidence.ACADEMIC_SINGLE,
+        citation=Citation(formula=formula),
+        params=params,
+    )
+
+
+FEATURES: tuple[BoundFeature, ...] = (
+    season_dow(),
+    season_tom(k=3),
 )
 
 
-__all__ = ["FEATURES", "day_of_week", "month_of_year", "turn_of_month"]
+__all__ = [
+    "FEATURES",
+    "season_dow",
+    "season_tom",
+]
