@@ -64,6 +64,10 @@ markers = [
 [tool.ruff]
 line-length = 100
 target-version = "py313"
+# Example notebooks are an illustrative gallery, not library code: they legitimately carry
+# top-of-cell imports (E402) and long display lines, so the strict library lint config does not
+# apply to them. They are excluded from `ruff check .` (which CI runs).
+extend-exclude = ["examples/notebooks"]
 
 [tool.ruff.lint]
 select = [
