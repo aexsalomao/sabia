@@ -22,6 +22,7 @@ from sabia.typing import (
     DVOL_RAW,
     HIGH_SPLIT,
     LOW_SPLIT,
+    MARKET_RET,
     OPEN_SPLIT,
     OPEN_TR,
     VOLUME_RAW,
@@ -39,6 +40,12 @@ CLOSE = "close"
 VOLUME = "volume"
 VWAP = "vwap"
 DOLLAR_VOLUME = "dollar_volume"
+MARKET = "market_ret"
+
+# The market factor is common across symbols (it is one series the whole universe shares), so it is
+# generated from a fixed seed independent of the per-symbol OHLCV seed -- identical for every symbol
+# at a given bar, and stable across calls of the same length.
+_MARKET_SEED = 12345
 
 # One schema for the whole suite: every role resolves to its physical column. The synthetic frames
 # carry a single adjustment basis, so tr / split / raw of a field all map to the same column.
@@ -55,6 +62,7 @@ SCHEMA = BarSchema(
         VOLUME_SPLIT: VOLUME,
         VOLUME_RAW: VOLUME,
         DVOL_RAW: DOLLAR_VOLUME,
+        MARKET_RET: MARKET,
     }
 )
 
@@ -75,6 +83,7 @@ def _ohlcv_columns(n: int, seed: int) -> dict[str, np.ndarray]:
     high = hi_base * (1.0 + np.abs(rng.normal(0.0, 0.004, n)))
     low = lo_base * (1.0 - np.abs(rng.normal(0.0, 0.004, n)))
     volume = rng.integers(100_000, 1_000_000, n).astype(np.float64)
+    market_ret = np.random.default_rng(_MARKET_SEED).normal(0.0, 0.01, n)
     return {
         OPEN: open_,
         HIGH: high,
@@ -83,6 +92,7 @@ def _ohlcv_columns(n: int, seed: int) -> dict[str, np.ndarray]:
         VOLUME: volume,
         VWAP: (high + low + close) / 3.0,
         DOLLAR_VOLUME: close * volume,
+        MARKET: market_ret,
     }
 
 

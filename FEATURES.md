@@ -362,9 +362,9 @@ precisely specified. Roles use `field@adjustment` (`tr`=total-return, `split`=sp
 `dvol@raw`=`dollar_volume@raw`; `mkt`=`market_ret`. min_history at `tol=1e-6` for decay.
 
 > **The shipped library is a superset of this table.** It additionally ships drifted extras that
-> predate the §12 contract and have no §12 equivalent — `adx_14`, `half_life_60`, `adv_21`,
-> `signed_vol_21`, `dollar_vol`, and the price-level `sma_*`/`ema_*` — retained and documented as
-> "beyond §12". They obey the same invariants and tests.
+> predate the §12 contract and have no §12 equivalent — `ret_simple`, `adx_14`, `half_life_60`,
+> `adv_21`, `signed_vol_21`, `dollar_vol`, and the price-level `sma_*`/`ema_*` — retained and
+> documented as "beyond §12". They obey the same invariants and tests.
 
 ### returns — `FINITE`, unit `LOG_RETURN` (drawdown `RATIO`)
 | Feature | Definition | Params | Roles | min_hist | Evidence | Tier |

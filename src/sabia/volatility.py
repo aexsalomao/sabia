@@ -12,7 +12,7 @@ from math import log
 import polars as pl
 
 from sabia._expr import emit_after, grouped
-from sabia._math import log_return, safe_log, safe_sqrt
+from sabia._math import log_return, safe_div, safe_log, safe_sqrt
 from sabia.naming import naming
 from sabia.params import FrozenParams
 from sabia.references import Citation, Reference
@@ -256,6 +256,90 @@ def atr(
     )
 
 
+# --- Bollinger Bands -----------------------------------------------------------------------------
+# %B and bandwidth derive from the same middle band + rolling dispersion. Bollinger uses the
+# population standard deviation (ddof=0), so the closed form is exact and ddof-stable. These run on
+# split-only close: dividend adjustment shifts the band level and distorts the dispersion (2.2).
+
+
+def _std_token(n_std: float) -> int | str:
+    """Name token for the band width: the integer when integral (the 2.0 default -> ``2``), else a
+    dot-free decimal (``2.5`` -> ``2p5``) so the name stays snake_case (FEATURES.md 4.3)."""
+    return int(n_std) if float(n_std).is_integer() else repr(float(n_std)).replace(".", "p")
+
+
+def _bollinger(
+    s: BarSchema, close: PriceRole, window: int, n_std: float
+) -> tuple[pl.Expr, pl.Expr, pl.Expr]:
+    # close, middle band (SMA), and half-width (n_std * population std) over the trailing window.
+    c = pl.col(s.column(close))
+    mid = c.rolling_mean(window, min_samples=window)
+    half = n_std * c.rolling_std(window, min_samples=window, ddof=0)
+    return c, mid, half
+
+
+def bb_pctb(
+    *, window: int = 20, n_std: float = 2.0, close: PriceRole = CLOSE_SPLIT
+) -> BoundFeature:
+    """Bollinger %B: position of close within its bands, ``(close - lower) / (upper - lower)``.
+
+    ``%B = (close - (mid - n*sd)) / (2*n*sd)`` -- 0 at the lower band, 1 at the upper, unbounded
+    outside (UNITLESS). A flat window (sd = 0) collapses the bands -> null. FINITE. Bollinger 2001.
+    """
+    name = naming("bb", window, _std_token(n_std), suffix="pctb")
+
+    def build(s: BarSchema) -> pl.Expr:
+        c, mid, half = _bollinger(s, close, window, n_std)
+        lower = mid - half
+        return grouped(safe_div(c - lower, 2.0 * half), s.symbol_col).alias(name)
+
+    return _bollinger_feature(
+        build, name, window, close, Unit.UNITLESS, FrozenParams(window=window, n_std=n_std)
+    )
+
+
+def bb_bw(*, window: int = 20, n_std: float = 2.0, close: PriceRole = CLOSE_SPLIT) -> BoundFeature:
+    """Bollinger bandwidth: band width relative to the middle band, ``2*n*sd / mid``. FINITE, RATIO.
+
+    Widens with volatility, contracts in quiet regimes ("the squeeze"). Citation: Bollinger (2001).
+    """
+    name = naming("bb", window, _std_token(n_std), suffix="bw")
+
+    def build(s: BarSchema) -> pl.Expr:
+        _, mid, half = _bollinger(s, close, window, n_std)
+        return grouped(safe_div(2.0 * half, mid), s.symbol_col).alias(name)
+
+    return _bollinger_feature(
+        build, name, window, close, Unit.RATIO, FrozenParams(window=window, n_std=n_std)
+    )
+
+
+def _bollinger_feature(
+    build: Callable[[BarSchema], pl.Expr],
+    name: str,
+    window: int,
+    close: PriceRole,
+    unit: Unit,
+    params: FrozenParams,
+) -> BoundFeature:
+    return bind_feature(
+        build,
+        name=name,
+        family=Family.VOLATILITY,
+        native_band=_BANDS,
+        lookback=window,
+        min_history=window,
+        recurrence=Recurrence.FINITE,
+        effective_warmup=window,
+        cost_class=Cost.LINEAR,
+        input_roles=(close,),
+        output_unit=unit,
+        evidence=Evidence.TA_CANON,
+        citation=Citation(formula=Reference("Bollinger", 2001)),
+        params=params,
+    )
+
+
 def _rs_term(
     s: BarSchema, open_: PriceRole, high: PriceRole, low: PriceRole, close: PriceRole
 ) -> pl.Expr:
@@ -305,12 +389,16 @@ FEATURES: tuple[BoundFeature, ...] = (
     vol_rs(window=21),
     vol_yz(window=21),
     atr(window=14),
+    bb_pctb(window=20, n_std=2.0),
+    bb_bw(window=20, n_std=2.0),
 )
 
 
 __all__ = [
     "FEATURES",
     "atr",
+    "bb_bw",
+    "bb_pctb",
     "semivar_down",
     "vol_cc",
     "vol_ewma",

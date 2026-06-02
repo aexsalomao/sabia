@@ -50,10 +50,27 @@ def main() -> None:
         .filter(pl.col("k") == n)
         .select("timestamp")
     )
+    panel = panel.join(complete, on="timestamp").sort("symbol", "timestamp")
+    # Equal-weight market factor: the cross-sectional mean of one-bar simple returns at each bar.
+    # PIT-valid (contemporaneous returns only) and common across symbols -- the market-model input
+    # for beta_252 / idio_vol_252 (FEATURES.md 2.2 FactorRole, §12).
+    panel = panel.with_columns(
+        _ret=(pl.col("close") / pl.col("close").shift(1) - 1.0).over("symbol")
+    )
+    market = panel.group_by("timestamp").agg(pl.col("_ret").mean().alias("market_ret"))
     panel = (
-        panel.join(complete, on="timestamp")
+        panel.join(market, on="timestamp")
         .select(
-            "timestamp", "symbol", "open", "high", "low", "close", "volume", "vwap", "dollar_volume"
+            "timestamp",
+            "symbol",
+            "open",
+            "high",
+            "low",
+            "close",
+            "volume",
+            "vwap",
+            "dollar_volume",
+            "market_ret",
         )
         .sort("symbol", "timestamp")
     )

@@ -7,7 +7,7 @@ import polars as pl
 import pytest
 from synthetic import CLOSE, HIGH, LOW, OPEN, SCHEMA, SYMBOL, TIMESTAMP
 
-from sabia.volatility import atr, vol_cc, vol_gk, vol_parkinson, vol_rs, vol_yz
+from sabia.volatility import atr, bb_bw, bb_pctb, vol_cc, vol_gk, vol_parkinson, vol_rs, vol_yz
 
 TOL = 1e-9
 
@@ -83,3 +83,33 @@ def test_atr_equals_true_range_level_for_constant_range() -> None:
 def test_volatility_leading_values_are_null() -> None:
     out = _flat(10).select(vol_parkinson(window=5).expr(SCHEMA)).to_series()
     assert out.head(4).null_count() == 4
+
+
+def test_bb_pctb_matches_closed_form() -> None:
+    closes = [1.0, 2.0, 3.0, 4.0]  # last window (3 bars): [2, 3, 4]
+    out = _ohlc(closes, closes, closes, closes).select(bb_pctb(window=3).expr(SCHEMA)).to_series()
+    # Population std (ddof=0) of [2, 3, 4] is sqrt(2/3); %B = (close - lower) / (2 * 2 * sd).
+    sd = sqrt(2.0 / 3.0)
+    lower = 3.0 - 2.0 * sd
+    expected = (4.0 - lower) / (2.0 * 2.0 * sd)
+    assert out[3] == pytest.approx(expected, abs=TOL)
+
+
+def test_bb_bw_matches_closed_form() -> None:
+    closes = [1.0, 2.0, 3.0, 4.0]
+    out = _ohlc(closes, closes, closes, closes).select(bb_bw(window=3).expr(SCHEMA)).to_series()
+    # Bandwidth = (upper - lower) / mid = 2 * 2 * sd / 3.
+    expected = 2.0 * 2.0 * sqrt(2.0 / 3.0) / 3.0
+    assert out[3] == pytest.approx(expected, abs=TOL)
+
+
+def test_bb_pctb_null_on_flat_window() -> None:
+    # Flat closes -> zero dispersion -> the bands collapse -> %B is undefined (null), never inf.
+    out = _flat(6).select(bb_pctb(window=3).expr(SCHEMA)).to_series()
+    assert out[5] is None
+
+
+def test_bb_bw_zero_on_flat_window() -> None:
+    # A flat window has zero band width but a non-zero middle band, so bandwidth is a genuine 0.
+    out = _flat(6).select(bb_bw(window=3).expr(SCHEMA)).to_series()
+    assert out[5] == pytest.approx(0.0, abs=TOL)

@@ -12,14 +12,14 @@ from collections.abc import Callable
 import polars as pl
 
 from sabia._expr import grouped
-from sabia._math import safe_div
+from sabia._math import log_return, safe_div, safe_sqrt
 from sabia.naming import naming
 from sabia.params import FrozenParams
 from sabia.references import Citation, Reference
 from sabia.registry import XS_SIGNAL_COLUMN, BoundFeature, bind_feature
 from sabia.schema import BarSchema
 from sabia.spec import Cost, Evidence, Family, Horizon, Recurrence, Unit
-from sabia.typing import CLOSE_TR, PriceRole
+from sabia.typing import CLOSE_TR, MARKET_RET, FactorRole, PriceRole
 
 _JT = Reference("Jegadeesh & Titman", 1993)
 
@@ -141,15 +141,119 @@ def _xs_feature(  # noqa: PLR0913 -- a cross-sectional spec genuinely carries th
     )
 
 
+# --- single-factor market model (per symbol, not a cross-section reduction) -----------------------
+# beta / idiosyncratic vol regress each name's returns on the market factor over a trailing window.
+# These are per-symbol time-series (no XS reduction, so signal=None), but they belong to the
+# cross-sectional family: the market factor links a name to the rest of the universe, and the
+# residual (idio vol) and slope (beta) are the inputs to the size/value/low-vol factor zoo
+# (FEATURES.md 12). Solved in closed form from rolling population moments -- no per-row Python.
+
+_SHARPE = Reference("Sharpe", 1964)
+_AHXZ = Reference("Ang, Hodrick, Xing & Zhang", 2006)
+
+
+def _roll_cov(a: pl.Expr, b: pl.Expr, window: int) -> pl.Expr:
+    # Population covariance of two aligned series over the trailing window: E[ab] - E[a]E[b]. With
+    # a == b this is the variance. min_samples=window emits null until the window is full.
+    mean_ab = (a * b).rolling_mean(window, min_samples=window)
+    mean_a = a.rolling_mean(window, min_samples=window)
+    mean_b = b.rolling_mean(window, min_samples=window)
+    return mean_ab - mean_a * mean_b
+
+
+def beta(
+    *, window: int = 252, close: PriceRole = CLOSE_TR, market: FactorRole = MARKET_RET
+) -> BoundFeature:
+    """Rolling market beta: OLS slope of asset log returns on the market, ``Cov(r,m)/Var(m)``.
+
+    A flat market window (zero variance) -> null. FINITE, UNITLESS. The CAPM slope (Sharpe 1964),
+    estimated rolling per name. Citation: Sharpe (1964); empirically Fama & MacBeth (1973).
+    """
+    name = naming("beta", window)
+
+    def build(s: BarSchema) -> pl.Expr:
+        c = pl.col(s.column(close))
+        r = log_return(c, c.shift(1))
+        m = pl.col(s.column(market))
+        value = safe_div(_roll_cov(r, m, window), _roll_cov(m, m, window))
+        return grouped(value, s.symbol_col).alias(name)
+
+    return _market_feature(
+        build,
+        name,
+        window,
+        (close, market),
+        Unit.UNITLESS,
+        Citation(formula=_SHARPE, empirical=(Reference("Fama & MacBeth", 1973),)),
+    )
+
+
+def idio_vol(
+    *, window: int = 252, close: PriceRole = CLOSE_TR, market: FactorRole = MARKET_RET
+) -> BoundFeature:
+    """Idiosyncratic volatility: per-bar std of the residual from the market-model regression.
+
+    ``sqrt(Var(r) - Cov(r,m)^2 / Var(m))`` -- the part of return variance the market does not
+    explain. A flat market window -> null. FINITE, per-bar. Citation: Ang, Hodrick, Xing & Zhang
+    (2006) (the idiosyncratic-volatility anomaly).
+    """
+    name = naming("idio_vol", window)
+
+    def build(s: BarSchema) -> pl.Expr:
+        c = pl.col(s.column(close))
+        r = log_return(c, c.shift(1))
+        m = pl.col(s.column(market))
+        cov_rm = _roll_cov(r, m, window)
+        resid_var = _roll_cov(r, r, window) - safe_div(cov_rm * cov_rm, _roll_cov(m, m, window))
+        return grouped(safe_sqrt(resid_var), s.symbol_col).alias(name)
+
+    return _market_feature(
+        build, name, window, (close, market), Unit.RETURN_STD_PER_BAR, Citation(formula=_AHXZ)
+    )
+
+
+def _market_feature(
+    build: Callable[[BarSchema], pl.Expr],
+    name: str,
+    window: int,
+    roles: tuple[PriceRole | FactorRole, ...],
+    unit: Unit,
+    citation: Citation,
+) -> BoundFeature:
+    # Per-symbol factor-model feature: FINITE over the return window (window+1 closes), no XS panel
+    # requirement (the market factor is carried per row, session-aligned by the caller, FEATURES.md
+    # 2.3). Closed form, so cost is LINEAR like the trend OLS slope, not a HEAVY kernel.
+    return bind_feature(
+        build,
+        name=name,
+        family=Family.CROSS_SECTIONAL,
+        native_band=(Horizon.LONG,),
+        lookback=window,
+        min_history=window + 1,
+        recurrence=Recurrence.FINITE,
+        effective_warmup=window + 1,
+        cost_class=Cost.LINEAR,
+        input_roles=roles,
+        output_unit=unit,
+        evidence=Evidence.ACADEMIC_REPLICATED,
+        citation=citation,
+        params=FrozenParams(window=window),
+    )
+
+
 FEATURES: tuple[BoundFeature, ...] = (
     xs_rank_mom(formation=252, skip=21),
     xs_z_mom(formation=252, skip=21),
     rev_1m(window=21),
+    beta(window=252),
+    idio_vol(window=252),
 )
 
 
 __all__ = [
     "FEATURES",
+    "beta",
+    "idio_vol",
     "rev_1m",
     "xs_rank_mom",
     "xs_z_mom",
