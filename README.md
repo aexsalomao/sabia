@@ -31,28 +31,69 @@ uv sync --extra dev
 
 ## Quickstart
 
+A complete, copy-paste-runnable example — two symbols, 30 daily bars, three features:
+
 ```python
+import math
 import polars as pl
 import sabia
-from sabia import BarSchema, PriceRole, PriceField, Adjustment
+from sabia import BarSchema
 
-frame = ...  # OHLCV LazyFrame/DataFrame; see sabia.validate for the input contract
+def bars(symbol, base):
+    rets = [0.012 if i % 3 else -0.008 for i in range(30)]   # deterministic, varied
+    close, c = [], base
+    for r in rets:
+        c *= math.exp(r); close.append(c)
+    return pl.DataFrame({
+        "timestamp": pl.datetime_range(pl.datetime(2024, 1, 1), pl.datetime(2024, 1, 30),
+                                       interval="1d", time_zone="UTC", eager=True),
+        "symbol": [symbol] * 30,
+        "open":  [x * 0.999 for x in close],
+        "high":  [x * 1.004 for x in close],
+        "low":   [x * 0.996 for x in close],
+        "close": close,
+        "volume": [1_000_000.0 + 1000 * i for i in range(30)],
+    })
 
-# A BarSchema maps your physical column names to roles. sabia adjusts nothing — you declare which
-# adjustment basis each column carries.
-schema = BarSchema(roles={
-    PriceRole(PriceField.OPEN,  Adjustment.SPLIT): "open",
-    PriceRole(PriceField.HIGH,  Adjustment.SPLIT): "high",
-    PriceRole(PriceField.LOW,   Adjustment.SPLIT): "low",
-    PriceRole(PriceField.CLOSE, Adjustment.SPLIT): "close",
-    PriceRole(PriceField.CLOSE, Adjustment.TR):    "close",
-})
+frame = pl.concat([bars("AAA", 100.0), bars("BBB", 50.0)]).sort("symbol", "timestamp")
 
-# Factories return BoundFeature objects; compute resolves roles against the schema and materializes:
-df = sabia.compute(frame, sabia.momentum.rsi(period=14), sabia.volatility.vol_yz(window=21),
-                   schema=schema)
+# BarSchema maps your physical columns to roles. sabia adjusts nothing — you declare which
+# adjustment basis each column carries. .ohlcv(...) is the shorthand for the common OHLCV case;
+# for richer inputs (a separate total-return close, VWAP, a market factor) build BarSchema(roles=...).
+schema = BarSchema.ohlcv()   # open/high/low/close/volume; close also backs close@tr
 
-# Query the registry by horizon or data tier:
+# Factories return BoundFeature objects; compute resolves their roles and materializes. include_keys
+# prepends symbol/timestamp, aligned row-for-row, which is what a downstream pipeline wants.
+features = sabia.compute(
+    frame,
+    sabia.returns.ret_log(period=1),
+    sabia.momentum.roc(window=5),
+    sabia.volatility.vol_cc(window=10),
+    schema=schema,
+    include_keys=True,
+)
+print(features.tail(5))
+```
+
+```
+shape: (5, 5)
+┌────────┬─────────────────────────┬───────────┬──────────┬───────────┐
+│ symbol ┆ timestamp               ┆ ret_log_1 ┆ roc_5    ┆ vol_cc_10 │
+│ ---    ┆ ---                     ┆ ---       ┆ ---      ┆ ---       │
+│ str    ┆ datetime[μs, UTC]       ┆ f64       ┆ f64      ┆ f64       │
+╞════════╪═════════════════════════╪═══════════╪══════════╪═══════════╡
+│ BBB    ┆ 2024-01-26 00:00:00 UTC ┆ 0.012     ┆ 0.020201 ┆ 0.009661  │
+│ BBB    ┆ 2024-01-27 00:00:00 UTC ┆ 0.012     ┆ 0.040811 ┆ 0.009661  │
+│ BBB    ┆ 2024-01-28 00:00:00 UTC ┆ -0.008    ┆ 0.020201 ┆ 0.010328  │
+│ BBB    ┆ 2024-01-29 00:00:00 UTC ┆ 0.012     ┆ 0.020201 ┆ 0.009661  │
+│ BBB    ┆ 2024-01-30 00:00:00 UTC ┆ 0.012     ┆ 0.040811 ┆ 0.009661  │
+└────────┴─────────────────────────┴───────────┴──────────┴───────────┘
+```
+
+Each feature emits `null` during its warm-up window (a rolling stat needs a full window first); use
+`sabia.drop_warmup(...)` to trim those rows. Query the shipped catalog by horizon or data tier:
+
+```python
 reg = sabia.Registry.default()
 reg.where(lambda s: sabia.Horizon.MEDIUM in s.native_band)
 reg.available(sabia.DataTier.DAILY)
@@ -63,6 +104,21 @@ reg.available(sabia.DataTier.DAILY)
 Causality · point-in-time correctness · purity (no I/O, clocks, randomness) · Polars-native
 (no pandas) · determinism within a declared tolerance. All enforced by tests, not convention. See
 `FEATURES.md` for the full spec.
+
+## Reproducibility & versioning
+
+`sabia` pins **`polars==1.39.3`** exactly and targets **Python ≥ 3.13** on purpose: the manifest's
+feature `fingerprint` (§3.4) folds in the Polars version, so a stored dataset's exact feature
+definitions stay provable across train and serve. These pins are deliberate, not an oversight — they
+will relax toward a range once the fingerprint contract is settled past 1.0.
+
+The fingerprint is a **best-effort reproducibility hash**, not a behavioral guarantee: it hashes each
+feature's bound params, roles, dependencies, the Polars version, and the *normalized source* of its
+expression (and first-party helpers). That catches the changes that matter in practice — a retuned
+constant, a swapped role, an edited formula — but, being source-based, two mathematically equivalent
+rewrites can still produce different fingerprints. Treat a fingerprint change as "prove this was
+intended" (the CI manifest gate enforces exactly that), not as a proof of behavioral difference.
+`FeatureSetManifest` serializes (`to_json` / `from_json`) so a dataset can carry its definitions.
 
 ## License
 

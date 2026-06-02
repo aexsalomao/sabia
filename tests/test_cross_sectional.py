@@ -12,8 +12,8 @@ import polars as pl
 import pytest
 from synthetic import CLOSE, MARKET, SCHEMA, SYMBOL, TIMESTAMP
 
-from sabia.cross_sectional import beta, idio_vol
-from sabia.registry import Registry, evaluate
+from sabia.cross_sectional import _xs_rank_reduce, beta, idio_vol
+from sabia.registry import XS_SIGNAL_COLUMN, Registry, evaluate
 
 
 def _panel(symbol_closes: dict[str, list[float]]) -> pl.DataFrame:
@@ -47,7 +47,7 @@ def test_xs_z_mom_is_centered_across_universe() -> None:
             "C": [100.0 - i * 0.2 for i in range(n)],
         }
     )
-    feature = _feature("xs_z_mom_252")
+    feature = _feature("xs_z_mom_252_21")
     keyed = panel.select(TIMESTAMP, SYMBOL).with_columns(v=evaluate(panel, feature, SCHEMA))
     last_ts = panel.get_column(TIMESTAMP).max()
     z = keyed.filter(pl.col(TIMESTAMP) == last_ts).get_column("v")
@@ -64,7 +64,7 @@ def test_xs_rank_mom_ranks_in_zero_one() -> None:
             "C": [100.0 - i * 0.2 for i in range(n)],
         }
     )
-    feature = _feature("xs_rank_mom_252")
+    feature = _feature("xs_rank_mom_252_21")
     keyed = panel.select(TIMESTAMP, SYMBOL).with_columns(v=evaluate(panel, feature, SCHEMA))
     last_ts = panel.get_column(TIMESTAMP).max()
     ranked = keyed.filter(pl.col(TIMESTAMP) == last_ts).sort(SYMBOL).get_column("v")
@@ -89,6 +89,24 @@ def test_rev_1m_ranks_recent_losers_high() -> None:
     # Reversal = -return ranked ascending: loser C ranks above winner A.
     assert ranked[2] > ranked[0]
     assert ranked.min() > 0.0 and ranked.max() <= 1.0
+
+
+def test_xs_rank_excludes_nulls_from_rank_and_denominator() -> None:
+    # FEATURES.md 4.5 contract: a null signal is dropped from BOTH the rank and the denominator, and
+    # stays null. With 4 valid signals + 1 null at one timestamp, ranks run over 4, not 5.
+    ts = datetime(2024, 1, 1, tzinfo=UTC)
+    frame = pl.DataFrame(
+        {
+            TIMESTAMP: [ts] * 5,
+            SYMBOL: list("ABCDE"),
+            XS_SIGNAL_COLUMN: [1.0, 2.0, 3.0, 4.0, None],
+        }
+    )
+    out = frame.select(_xs_rank_reduce(SCHEMA).alias("rank")).get_column("rank")
+    values = out.to_list()
+    assert values[4] is None  # the null signal stays null
+    assert out.null_count() == 1
+    assert values[:4] == pytest.approx([0.25, 0.5, 0.75, 1.0])  # ranks over denominator 4
 
 
 # --- single-factor market model (beta / idiosyncratic vol) -------------------------------------

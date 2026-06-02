@@ -11,6 +11,7 @@ import polars as pl
 
 from sabia._expr import grouped
 from sabia._math import log_return, safe_div, safe_sqrt
+from sabia._validate_params import int_at_least, positive_int
 from sabia.naming import naming
 from sabia.params import FrozenParams
 from sabia.references import Citation, Reference
@@ -35,6 +36,7 @@ def zscore_close(*, window: int = 21, close: PriceRole = CLOSE_TR) -> BoundFeatu
     ``(close - mean) / std`` over the window; a flat window (zero std) yields null, never inf.
     Citation: Campbell, Lo & MacKinlay (1997).
     """
+    int_at_least("window", window, 2)
     name = naming("zscore_close", window)
 
     def build(s: BarSchema) -> pl.Expr:
@@ -68,6 +70,8 @@ def autocorr(*, lag: int = 1, window: int = 21, close: PriceRole = CLOSE_TR) -> 
     Pearson correlation of the return with its ``lag``-bar-lagged self, from rolling moments. A flat
     window (zero variance) yields null. Citation: Campbell, Lo & MacKinlay (1997).
     """
+    positive_int("lag", lag)
+    int_at_least("window", window, 2)
     name = naming("autocorr", lag, window)
 
     def build(s: BarSchema) -> pl.Expr:
@@ -101,6 +105,8 @@ def var_ratio(*, q: int = 2, window: int = 21, close: PriceRole = CLOSE_TR) -> B
     walk, <1 under mean reversion, >1 under momentum. Zero one-bar variance yields null. Citation:
     Lo & MacKinlay (1988).
     """
+    int_at_least("q", q, 2)  # VR(q) aggregates q-bar returns; q >= 2 by construction
+    int_at_least("window", window, 2)
     name = naming("var_ratio", q, window)
 
     def build(s: BarSchema) -> pl.Expr:
@@ -140,6 +146,7 @@ def half_life(*, window: int = 60, close: PriceRole = CLOSE_TR) -> BoundFeature:
     half-life ``-ln(2) / ln(1 + beta)`` only when ``-1 < beta < 0`` (genuinely mean-reverting),
     otherwise null. Built from rolling moments, so it stays a vectorized expression. (Extra.)
     """
+    int_at_least("window", window, 2)
     name = naming("half_life", window)
 
     def build(s: BarSchema) -> pl.Expr:

@@ -13,6 +13,7 @@ import polars as pl
 
 from sabia._expr import emit_after, grouped
 from sabia._math import log_return, safe_div, safe_log, safe_sqrt
+from sabia._validate_params import in_open_interval, int_at_least, positive
 from sabia.naming import naming
 from sabia.params import FrozenParams
 from sabia.references import Citation, Reference
@@ -43,6 +44,7 @@ _STD_PER_BAR = Unit.RETURN_STD_PER_BAR
 
 def vol_cc(*, window: int = 21, close: PriceRole = CLOSE_TR) -> BoundFeature:
     """Close-to-close volatility: rolling std of one-bar log returns. FINITE, per-bar."""
+    int_at_least("window", window, 2)
     name = naming("vol_cc", window)
 
     def build(s: BarSchema) -> pl.Expr:
@@ -71,9 +73,10 @@ def vol_cc(*, window: int = 21, close: PriceRole = CLOSE_TR) -> BoundFeature:
 def vol_ewma(*, lam: float = 0.94, close: PriceRole = CLOSE_TR) -> BoundFeature:
     """RiskMetrics EWMA volatility: ``sqrt(EWMA(r^2, alpha=1-lam))``. RECURSIVE_DECAY, per-bar.
 
-    Named by the lambda's percentage (``vol_ewma_94`` for lambda=0.94). RiskMetrics (1996).
+    Named by a dot-free lambda token (``vol_ewma_0p94`` for lambda=0.94). RiskMetrics (1996).
     """
-    name = naming("vol_ewma", round(lam * 100))
+    in_open_interval("lam", lam, 0.0, 1.0)
+    name = naming("vol_ewma", _lambda_token(lam))
     alpha = 1.0 - lam
     warmup = ewm_effective_warmup(alpha)
 
@@ -103,6 +106,7 @@ def vol_ewma(*, lam: float = 0.94, close: PriceRole = CLOSE_TR) -> BoundFeature:
 
 def semivar_down(*, window: int = 21, close: PriceRole = CLOSE_TR) -> BoundFeature:
     """Realized downside semivariance: ``sqrt(mean(min(r, 0)^2))`` over the window. FINITE."""
+    int_at_least("window", window, 2)
     name = naming("semivar_down", window)
 
     def build(s: BarSchema) -> pl.Expr:
@@ -135,6 +139,7 @@ def vol_parkinson(
     *, window: int = 21, high: PriceRole = HIGH_SPLIT, low: PriceRole = LOW_SPLIT
 ) -> BoundFeature:
     """Parkinson (1980) high-low range volatility. FINITE, per-bar."""
+    int_at_least("window", window, 2)
     name = naming("vol_parkinson", window)
 
     def build(s: BarSchema) -> pl.Expr:
@@ -154,6 +159,7 @@ def vol_gk(
     close: PriceRole = CLOSE_SPLIT,
 ) -> BoundFeature:
     """Garman-Klass (1980) OHLC volatility. FINITE, per-bar."""
+    int_at_least("window", window, 2)
     name = naming("vol_gk", window)
 
     def build(s: BarSchema) -> pl.Expr:
@@ -177,6 +183,7 @@ def vol_rs(
     close: PriceRole = CLOSE_SPLIT,
 ) -> BoundFeature:
     """Rogers-Satchell (1991) drift-independent OHLC volatility. FINITE, per-bar."""
+    int_at_least("window", window, 2)
     name = naming("vol_rs", window)
 
     def build(s: BarSchema) -> pl.Expr:
@@ -197,6 +204,7 @@ def vol_yz(
     close: PriceRole = CLOSE_SPLIT,
 ) -> BoundFeature:
     """Yang-Zhang (2000) volatility: overnight + open-close + Rogers-Satchell. FINITE, per-bar."""
+    int_at_least("window", window, 2)  # the k weight divides by (window - 1)
     name = naming("vol_yz", window)
 
     def build(s: BarSchema) -> pl.Expr:
@@ -228,6 +236,7 @@ def atr(
     close: PriceRole = CLOSE_SPLIT,
 ) -> BoundFeature:
     """Average True Range (Wilder 1978), RMA-smoothed. RECURSIVE_DECAY, price units."""
+    int_at_least("window", window, 2)  # RMA alpha = 1/window needs window >= 2 for alpha < 1
     name = naming("atr", window)
     warmup = ewm_effective_warmup(1 / window)
 
@@ -262,10 +271,22 @@ def atr(
 # split-only close: dividend adjustment shifts the band level and distorts the dispersion (2.2).
 
 
+def _decimal_token(value: float) -> str:
+    """Dot-free fixed-point name token (``0.94`` -> ``0p94``). Fixed-point (not ``repr``) so a small
+    magnitude never renders in scientific notation -- which would put an illegal ``e``/``-`` in the
+    name and make ``naming`` raise -- with trailing zeros trimmed (FEATURES.md 4.3)."""
+    return f"{value:.10f}".rstrip("0").rstrip(".").replace(".", "p")
+
+
+def _lambda_token(lam: float) -> str:
+    """Name token for a RiskMetrics lambda (``0.94`` -> ``0p94``); never collapses two lambdas."""
+    return _decimal_token(lam)
+
+
 def _std_token(n_std: float) -> int | str:
     """Name token for the band width: the integer when integral (the 2.0 default -> ``2``), else a
     dot-free decimal (``2.5`` -> ``2p5``) so the name stays snake_case (FEATURES.md 4.3)."""
-    return int(n_std) if float(n_std).is_integer() else repr(float(n_std)).replace(".", "p")
+    return int(n_std) if float(n_std).is_integer() else _decimal_token(n_std)
 
 
 def _bollinger(
@@ -286,6 +307,8 @@ def bb_pctb(
     ``%B = (close - (mid - n*sd)) / (2*n*sd)`` -- 0 at the lower band, 1 at the upper, unbounded
     outside (UNITLESS). A flat window (sd = 0) collapses the bands -> null. FINITE. Bollinger 2001.
     """
+    int_at_least("window", window, 2)
+    positive("n_std", n_std)
     name = naming("bb", window, _std_token(n_std), suffix="pctb")
 
     def build(s: BarSchema) -> pl.Expr:
@@ -303,6 +326,8 @@ def bb_bw(*, window: int = 20, n_std: float = 2.0, close: PriceRole = CLOSE_SPLI
 
     Widens with volatility, contracts in quiet regimes ("the squeeze"). Citation: Bollinger (2001).
     """
+    int_at_least("window", window, 2)
+    positive("n_std", n_std)
     name = naming("bb", window, _std_token(n_std), suffix="bw")
 
     def build(s: BarSchema) -> pl.Expr:

@@ -8,6 +8,7 @@ import polars as pl
 
 from sabia._expr import grouped
 from sabia._math import safe_div, safe_log
+from sabia._validate_params import int_at_least, positive_int
 from sabia.naming import naming
 from sabia.params import FrozenParams
 from sabia.references import Citation, Reference
@@ -20,11 +21,27 @@ _BANDS = (Horizon.SHORT, Horizon.MEDIUM)
 _FORMULA = Reference("Campbell, Lo & MacKinlay", 1997, "The Econometrics of Financial Markets")
 
 
+def _basis_token(open_: PriceRole, close: PriceRole) -> str | None:
+    """Adjustment-basis token for a two-role return, or ``None`` for the all-``@tr`` default.
+
+    The single-role Rule A in ``naming`` can't tag a feature that reads two price roles, so the name
+    would otherwise be identical for ``(open@tr, close@tr)`` and ``(open@split, close@split)``. Emit
+    one token when both roles share a non-TR basis (``split``), or both tokens when they diverge, so
+    distinct rebindings get distinct names (FEATURES.md 4.3).
+    """
+    if open_.adjustment is Adjustment.TR and close.adjustment is Adjustment.TR:
+        return None
+    if open_.adjustment is close.adjustment:
+        return open_.adjustment.value
+    return f"{open_.adjustment.value}_{close.adjustment.value}"
+
+
 def ret_log(*, period: int = 1, close: PriceRole = CLOSE_TR) -> BoundFeature:
     """Log return over ``period`` bars: ``ln(close / close.shift(period))``. FINITE, LOG_RETURN.
 
     A non-positive ratio (split artifact / bad data) yields ``null`` (FEATURES.md 4.5).
     """
+    positive_int("period", period)
     name = naming("ret_log", period, role=close, default_adjustment=Adjustment.TR)
 
     def build(s: BarSchema) -> pl.Expr:
@@ -50,13 +67,18 @@ def ret_log(*, period: int = 1, close: PriceRole = CLOSE_TR) -> BoundFeature:
     )
 
 
-def ret_simple(*, close: PriceRole = CLOSE_TR) -> BoundFeature:
-    """Simple one-bar return: ``close / close.shift(1) - 1``. FINITE, RATIO. (Extra, beyond §12.)"""
-    name = naming("ret_simple", role=close, default_adjustment=Adjustment.TR)
+def ret_simple(*, period: int = 1, close: PriceRole = CLOSE_TR) -> BoundFeature:
+    """Simple return over ``period`` bars: ``close / close.shift(period) - 1``. FINITE, RATIO.
+
+    The arithmetic counterpart of ``ret_log`` (Extra, beyond §12); the ``period`` is encoded in the
+    name (``ret_simple_1``) exactly as ``ret_log``'s is.
+    """
+    positive_int("period", period)
+    name = naming("ret_simple", period, role=close, default_adjustment=Adjustment.TR)
 
     def build(s: BarSchema) -> pl.Expr:
         c = pl.col(s.column(close))
-        value = safe_div(c, c.shift(1)) - 1
+        value = safe_div(c, c.shift(period)) - 1
         return grouped(value, s.symbol_col).alias(name)
 
     return bind_feature(
@@ -64,22 +86,23 @@ def ret_simple(*, close: PriceRole = CLOSE_TR) -> BoundFeature:
         name=name,
         family=Family.RETURNS,
         native_band=(Horizon.SHORT,),
-        lookback=1,
-        min_history=2,
+        lookback=period,
+        min_history=period + 1,
         recurrence=Recurrence.FINITE,
-        effective_warmup=2,
+        effective_warmup=period + 1,
         cost_class=Cost.O1,
         input_roles=(close,),
         output_unit=Unit.RATIO,
         evidence=Evidence.FORMULA_ONLY,
         citation=Citation(formula=_FORMULA),
-        params=FrozenParams(),
+        params=FrozenParams(period=period),
     )
 
 
 def ret_overnight(*, open_: PriceRole = OPEN_TR, close: PriceRole = CLOSE_TR) -> BoundFeature:
     """Overnight return: ``ln(open / close.shift(1))``. FINITE, LOG_RETURN."""
-    name = "ret_overnight"
+    token = _basis_token(open_, close)
+    name = naming("ret_overnight", token) if token else "ret_overnight"
 
     def build(s: BarSchema) -> pl.Expr:
         o = pl.col(s.column(open_))
@@ -107,7 +130,8 @@ def ret_overnight(*, open_: PriceRole = OPEN_TR, close: PriceRole = CLOSE_TR) ->
 
 def ret_intraday(*, open_: PriceRole = OPEN_TR, close: PriceRole = CLOSE_TR) -> BoundFeature:
     """Intraday (open-to-close) return: ``ln(close / open)``. FINITE, LOG_RETURN."""
-    name = "ret_intraday"
+    token = _basis_token(open_, close)
+    name = naming("ret_intraday", token) if token else "ret_intraday"
 
     def build(s: BarSchema) -> pl.Expr:
         value = safe_log(safe_div(pl.col(s.column(close)), pl.col(s.column(open_))))
@@ -133,6 +157,7 @@ def ret_intraday(*, open_: PriceRole = OPEN_TR, close: PriceRole = CLOSE_TR) -> 
 
 def drawdown(*, window: int = 252, close: PriceRole = CLOSE_TR) -> BoundFeature:
     """Trailing drawdown: ``close / max(close, window) - 1``, in [-1, 0]. FINITE, RATIO."""
+    int_at_least("window", window, 2)
     name = naming("drawdown", window, role=close, default_adjustment=Adjustment.TR)
 
     def build(s: BarSchema) -> pl.Expr:

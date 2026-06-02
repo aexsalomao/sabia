@@ -64,7 +64,7 @@ def test_compute_names_cross_sectional_columns_correctly() -> None:
     # Regression for review finding #1: XS reductions used to come back as '__sabia_xs_signal__' /
     # 'literal'. compute() must label each column with the feature name.
     df = sabia.compute(PANEL, sabia.cross_sectional.xs_rank_mom(), schema=SCHEMA, universe=SYMBOLS)
-    assert df.columns == ["xs_rank_mom_252"]
+    assert df.columns == ["xs_rank_mom_252_21"]
 
 
 def test_compute_two_rank_features_do_not_collide() -> None:
@@ -77,7 +77,7 @@ def test_compute_two_rank_features_do_not_collide() -> None:
         schema=SCHEMA,
         universe=SYMBOLS,
     )
-    assert df.columns == ["xs_rank_mom_252", "rev_1m_21"]
+    assert df.columns == ["xs_rank_mom_252_21", "rev_1m_21"]
 
 
 def test_compute_mixed_ts_and_xs_columns() -> None:
@@ -88,7 +88,7 @@ def test_compute_mixed_ts_and_xs_columns() -> None:
         schema=SCHEMA,
         universe=SYMBOLS,
     )
-    assert df.columns == ["rsi_14", "xs_z_mom_252"]
+    assert df.columns == ["rsi_14", "xs_z_mom_252_21"]
 
 
 def test_bounded_features_stay_in_range_on_real_data() -> None:
@@ -100,7 +100,7 @@ def test_bounded_features_stay_in_range_on_real_data() -> None:
 
 
 def test_cross_sectional_ranks_are_a_permutation_each_date() -> None:
-    feature = _REGISTRY.get("xs_rank_mom_252")
+    feature = _REGISTRY.get("xs_rank_mom_252_21")
     keyed = PANEL.select("timestamp").with_columns(v=evaluate(PANEL, feature, SCHEMA)).drop_nulls()
     # Every fully-populated date ranks its symbols into the (0, 1] grid k/n.
     n = len(SYMBOLS)

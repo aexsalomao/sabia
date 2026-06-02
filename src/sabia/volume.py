@@ -12,6 +12,7 @@ import polars as pl
 
 from sabia._expr import grouped
 from sabia._math import safe_div, safe_log, safe_sqrt
+from sabia._validate_params import int_at_least
 from sabia.naming import naming
 from sabia.params import FrozenParams
 from sabia.references import Citation, Reference
@@ -37,6 +38,7 @@ _CLM = Reference("Campbell, Lo & MacKinlay", 1997)
 
 def vol_z(*, window: int = 21, volume: VolumeRole = VOLUME_SPLIT) -> BoundFeature:
     """Rolling z-score of volume: how unusual today's volume is vs its recent norm. FINITE."""
+    int_at_least("window", window, 2)
     name = naming("vol_z", window)
 
     def build(s: BarSchema) -> pl.Expr:
@@ -51,6 +53,7 @@ def vol_z(*, window: int = 21, volume: VolumeRole = VOLUME_SPLIT) -> BoundFeatur
 
 def rel_volume(*, window: int = 21, volume: VolumeRole = VOLUME_SPLIT) -> BoundFeature:
     """Relative volume: ``volume / SMA(volume, window)``. FINITE, RATIO."""
+    int_at_least("window", window, 2)
     name = naming("rel_volume", window)
 
     def build(s: BarSchema) -> pl.Expr:
@@ -68,6 +71,7 @@ def amihud(
 
     Zero dollar volume (a halted bar) yields null, not inf -- there is no price impact to measure.
     """
+    int_at_least("window", window, 2)
     name = naming("amihud", window)
 
     def build(s: BarSchema) -> pl.Expr:
@@ -132,6 +136,7 @@ def cmf(
     volume: VolumeRole = VOLUME_SPLIT,
 ) -> BoundFeature:
     """Chaikin Money Flow over ``window`` bars, in [-1, 1]. FINITE. Citation: Chaikin."""
+    int_at_least("window", window, 2)
     name = naming("cmf", window)
 
     def build(s: BarSchema) -> pl.Expr:
@@ -177,6 +182,7 @@ def mfi(
     volume: VolumeRole = VOLUME_SPLIT,
 ) -> BoundFeature:
     """Money Flow Index, in [0, 100]: volume-weighted RSI on typical price. FINITE."""
+    int_at_least("window", window, 2)
     name = naming("mfi", window)
 
     def build(s: BarSchema) -> pl.Expr:
@@ -233,6 +239,7 @@ def roll_spread(*, window: int = 21, close: PriceRole = CLOSE_TR) -> BoundFeatur
     A non-negative serial covariance (no bid-ask bounce) yields null. Computed from rolling
     moments (no per-row Python).
     """
+    int_at_least("window", window, 2)
     name = naming("roll_spread", window)
 
     def build(s: BarSchema) -> pl.Expr:
@@ -335,6 +342,7 @@ def adv(
     *, window: int = 21, close: PriceRole = CLOSE_SPLIT, volume: VolumeRole = VOLUME_SPLIT
 ) -> BoundFeature:
     """Average daily dollar volume over ``window`` bars: a liquidity scale. FINITE. (Extra.)"""
+    int_at_least("window", window, 2)
     name = naming("adv", window)
 
     def build(s: BarSchema) -> pl.Expr:
@@ -348,6 +356,7 @@ def signed_vol(
     *, window: int = 21, close: PriceRole = CLOSE_TR, volume: VolumeRole = VOLUME_SPLIT
 ) -> BoundFeature:
     """Windowed signed volume (Granville's OBV, FINITE form): net up/down volume. (Extra.)"""
+    int_at_least("window", window, 2)
     name = naming("signed_vol", window)
 
     def build(s: BarSchema) -> pl.Expr:

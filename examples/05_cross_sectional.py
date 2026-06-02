@@ -32,7 +32,7 @@ def main() -> None:
 
     last_ts = panel.get_column("timestamp").max()
     print("cross-section on the final date:")
-    print(keyed.filter(pl.col("timestamp") == last_ts).sort("xs_rank_mom_252", descending=True))
+    print(keyed.filter(pl.col("timestamp") == last_ts).sort("xs_rank_mom_252_21", descending=True))
 
     # Forget the universe on a cross-sectional feature and compute() refuses, loudly:
     try:

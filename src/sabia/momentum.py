@@ -11,6 +11,7 @@ import polars as pl
 
 from sabia._expr import emit_after, grouped
 from sabia._math import safe_div, safe_log
+from sabia._validate_params import int_at_least, less_than, non_negative_int, positive_int
 from sabia.naming import naming
 from sabia.params import FrozenParams
 from sabia.references import Citation, Reference
@@ -44,6 +45,7 @@ def rsi(*, period: int = 14, close: PriceRole = CLOSE_TR) -> BoundFeature:
     A flat series (no gains, no losses) yields ``null``; pure gains saturate at 100, pure losses
     at 0 (FEATURES.md 4.5). Citation: Wilder (1978).
     """
+    int_at_least("period", period, 2)  # Wilder RMA alpha = 1/period needs period >= 2 for alpha < 1
     name = naming("rsi", period, role=close, default_adjustment=Adjustment.TR)
     warmup = ewm_effective_warmup(1 / period)
     alpha = 1 / period
@@ -83,6 +85,7 @@ def rsi(*, period: int = 14, close: PriceRole = CLOSE_TR) -> BoundFeature:
 
 def roc(*, window: int = 21, close: PriceRole = CLOSE_TR) -> BoundFeature:
     """Rate of change: ``close / close.shift(window) - 1``. FINITE, RATIO. Zero base yields null."""
+    positive_int("window", window)
     name = naming("roc", window, role=close, default_adjustment=Adjustment.TR)
 
     def build(s: BarSchema) -> pl.Expr:
@@ -114,6 +117,9 @@ def mom(*, formation: int = 252, skip: int = 21, close: PriceRole = CLOSE_TR) ->
     ``mom_252_21`` is the canonical 12-1 momentum: a 252-bar formation, the most recent 21 bars
     skipped to avoid short-term reversal. Citation: Jegadeesh & Titman (1993).
     """
+    positive_int("formation", formation)
+    non_negative_int("skip", skip)
+    less_than("skip", skip, "formation", formation)
     name = naming("mom", formation, skip, role=close, default_adjustment=Adjustment.TR)
 
     def build(s: BarSchema) -> pl.Expr:
@@ -150,6 +156,7 @@ def williams_r(
     close: PriceRole = CLOSE_SPLIT,
 ) -> BoundFeature:
     """Williams %R, in [-100, 0]. A flat range yields null. FINITE. Citation: Williams (1979)."""
+    int_at_least("window", window, 2)
     name = naming("williams_r", window)
 
     def build(s: BarSchema) -> pl.Expr:
@@ -170,6 +177,7 @@ def stoch_k(
     close: PriceRole = CLOSE_SPLIT,
 ) -> BoundFeature:
     """Stochastic %K, in [0, 100]. A flat range yields null. FINITE. Citation: Lane (1984)."""
+    int_at_least("window", window, 2)
     name = naming("stoch_k", window)
 
     def build(s: BarSchema) -> pl.Expr:
@@ -189,6 +197,8 @@ def stoch_d(
     close: PriceRole = CLOSE_SPLIT,
 ) -> BoundFeature:
     """Stochastic %D: a ``smooth``-bar SMA of %K. FINITE. Citation: Lane (1984)."""
+    int_at_least("window", window, 2)
+    positive_int("smooth", smooth)  # a 1-bar SMA is the identity -- valid, unlike a 1-bar window
     name = naming("stoch_d", window, smooth)
 
     def build(s: BarSchema) -> pl.Expr:
@@ -227,6 +237,7 @@ def cci(
     Uses the deviation-from-rolling-mean form of the mean absolute deviation (a pure-expression
     variant). A flat window (zero deviation) yields null. Citation: Lambert (1980).
     """
+    int_at_least("window", window, 2)  # mad is a rolling mean of (tp - sma); window=1 is always 0
     name = naming("cci", window)
     # The mean-deviation is a rolling mean of (tp - sma_tp), and sma_tp is itself a window-bar
     # rolling mean -- so the first non-null CCI lands only after 2*window-1 bars, not window.

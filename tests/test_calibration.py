@@ -63,7 +63,7 @@ def _information_coefficient(panel: pl.DataFrame, rank: pl.Series) -> float:
 
 def test_xs_momentum_has_positive_information_coefficient() -> None:
     panel = _panel_with_embedded_momentum()
-    feature = Registry.default().get("xs_rank_mom_252")
+    feature = Registry.default().get("xs_rank_mom_252_21")
     rank = evaluate(panel, feature, SCHEMA)
     assert rank.len() == panel.height
     ic = _information_coefficient(panel, rank)

@@ -6,6 +6,38 @@ All notable changes to `sabia` are documented here. The format follows
 
 ## [Unreleased]
 
+Acting on an external audit: closing gaps where the code did not honor its own contracts, plus
+ergonomics. Breaking renames are pre-1.0 churn (the manifest lock is regenerated in the same change).
+
+### Added
+
+- **Manifest serialization.** `FeatureSetManifest.to_dict` / `from_dict` / `to_json` / `from_json`
+  (tagged with `MANIFEST_SCHEMA_VERSION`) — the manifest now actually round-trips, as its docstring
+  always claimed.
+- **As-of universe membership.** `validate(..., membership=df)` / `compute(..., membership=df)` accept
+  a `(symbol, start, end)` frame; completeness is then checked point-in-time
+  (`{symbol : start <= t < end}`) instead of against a single static symbol count. Replaces the
+  previously accepted-but-ignored `membership_asof`.
+- **`compute(..., include_keys=True)`** prepends `symbol`/`timestamp`, aligned row-for-row.
+- **`BarSchema.ohlcv(...)`** convenience constructor for the common plain-OHLCV case.
+- **Parameter guards.** Factories now reject out-of-domain params at bind time (`period`/`window`/
+  `span` ranges, `0 < lam < 1`, `skip < formation`, `fast < slow`, …) via `sabia._validate_params`.
+- **Ergonomic toolkit** (`sabia.toolkit`, re-exported at top level): `FeatureSet`, `describe`,
+  `required_roles` / `required_columns`, `max_min_history` / `drop_warmup`, and `audit_frame`
+  (a non-raising `FrameAudit` report). New `sabia.recipes` (`daily_core`, `volatility_core`,
+  `cross_sectional_core`) returning `FeatureSet` bundles — features, never strategies.
+- **Docs.** Runnable README quickstart with real output; a generated `docs/catalog.md`; a
+  Reproducibility note explaining the Polars pin / 3.13 floor and the best-effort fingerprint.
+
+### Changed (breaking — feature renames)
+
+- `xs_rank_mom_252` → `xs_rank_mom_252_21`, `xs_z_mom_252` → `xs_z_mom_252_21` (the `skip` param is
+  now encoded in the name).
+- `vol_ewma_94` → `vol_ewma_0p94` (a stable lambda token that never rounds two lambdas together).
+- `ret_simple` → `ret_simple_1` (`ret_simple` gains a `period`, encoded like `ret_log`).
+- `ret_overnight` / `ret_intraday` now encode a non-`@tr` adjustment basis in the name (defaults
+  unchanged). `compute_lazy` documents that it does not validate.
+
 ## [0.2.0] - 2026-06-02
 
 ### Changed — v5 architecture (breaking; pre-1.0)

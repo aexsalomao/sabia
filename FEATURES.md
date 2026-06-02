@@ -100,8 +100,11 @@ or a later calendar role — sabia does not pretend one calendar fits all. v1 sh
 ### 2.5 Cross-sectional universe
 
 Completeness is *relative to a declared universe*. Cross-sectional features declare
-`requires_universe`/`requires_complete_panel`; the caller passes the universe + as-of membership:
-`validate(frame, universe=…, membership_asof=ts)`. sabia asserts completeness, doesn't infer it.
+`requires_universe`/`requires_complete_panel`; the caller passes either a static universe
+(`validate(frame, universe=[…])`) or as-of membership as a `(symbol, start, end)` frame
+(`validate(frame, membership=df)`), under which the expected cross-section at each timestamp `t` is
+`{symbol : start <= t < end}` (the point-in-time model for IPOs / delistings). sabia asserts
+completeness against the declared universe, never infers it.
 
 ---
 
@@ -227,7 +230,7 @@ A transform takes a bound feature / resolved expression and returns one (`BoundT
 - `frac_diff(d)` — fractional differentiation; long memory → large `effective_warmup` (§8.2).
 
 **Dependencies are declarative provenance** (§4.4). A factory **may compose lower-level expressions
-internally** — e.g. `xs_rank_mom_252()` is a convenience bound feature that composes momentum + rank,
+internally** — e.g. `xs_rank_mom_252_21()` is a convenience bound feature that composes momentum + rank,
 distinct from the generic `xs_rank(expr)` transform — but `compute` does not schedule a DAG unless a
 future optimizer adds one.
 
@@ -296,7 +299,7 @@ v1 ships only `FINITE` + `RECURSIVE_DECAY`, so the guarantee covers the entire v
 registry rejects `PATH_DEPENDENT`/`EXPANDING` specs in v1.
 
 ### 8.3 Input contract & validation modes
-`sabia.validate(frame, schema=…, universe=…, membership_asof=…, mode=ValidationMode.STRICT)`:
+`sabia.validate(frame, schema=…, universe=…, membership=…, mode=ValidationMode.STRICT)`:
 
 - **`STRICT`** (default) — raises on any contract violation.
 - **`RESEARCH`** — warns on completeness/finalization only; **still raises** on schema, dtype, role,
@@ -362,7 +365,7 @@ precisely specified. Roles use `field@adjustment` (`tr`=total-return, `split`=sp
 `dvol@raw`=`dollar_volume@raw`; `mkt`=`market_ret`. min_history at `tol=1e-6` for decay.
 
 > **The shipped library is a superset of this table.** It additionally ships drifted extras that
-> predate the §12 contract and have no §12 equivalent — `ret_simple`, `adx_14`, `half_life_60`,
+> predate the §12 contract and have no §12 equivalent — `ret_simple_1`, `adx_14`, `half_life_60`,
 > `adv_21`, `signed_vol_21`, `dollar_vol`, and the price-level `sma_*`/`ema_*` — retained and
 > documented as "beyond §12". They obey the same invariants and tests.
 
@@ -398,7 +401,7 @@ precisely specified. Roles use `field@adjustment` (`tr`=total-return, `split`=sp
 | Feature | Definition | Params | Roles | min_hist | Rec | Evidence | Tier |
 |---|---|---|---|---|---|---|---|
 | `vol_cc_21` | std of log returns | 21 | close@tr | 22 | FINITE | FORMULA_ONLY | 1.0 |
-| `vol_ewma_94` | RiskMetrics EWMA (λ=0.94) | 0.94 | close@tr | 224 | DECAY | ACADEMIC_SINGLE | 1.0 |
+| `vol_ewma_0p94` | RiskMetrics EWMA (λ=0.94) | 0.94 | close@tr | 224 | DECAY | ACADEMIC_SINGLE | 1.0 |
 | `vol_parkinson_21` | Parkinson | 21 | h/l@split | 21 | FINITE | ACADEMIC_SINGLE | 1.0 |
 | `vol_gk_21` | Garman–Klass | 21 | o/h/l/c@split | 21 | FINITE | ACADEMIC_SINGLE | 1.0 |
 | `vol_rs_21` | Rogers–Satchell | 21 | o/h/l/c@split | 21 | FINITE | ACADEMIC_SINGLE | 1.0 |
@@ -444,9 +447,9 @@ precisely specified. Roles use `field@adjustment` (`tr`=total-return, `split`=sp
 ### cross_sectional — `requires_complete_panel`, `requires_universe`; ranks ascending (high mom → high rank)
 | Feature | Definition | Params | Roles | min_hist | Unit | Evidence | Tier |
 |---|---|---|---|---|---|---|---|
-| `xs_rank_mom_252` | percentile rank of `mom_252_21` | 252 | close@tr | 253 | RANK_0_1 | ACADEMIC_REPLICATED | 1.0 |
-| `xs_z_mom_252` | cross-sectional z of momentum (winsorized) | 252 | close@tr | 253 | ZSCORE | ACADEMIC_REPLICATED | 1.0 |
-| `rev_1m` | short-term reversal (−`ret_log_21`, ranked) | 21 | close@tr | 22 | RANK_0_1 | ACADEMIC_REPLICATED | 1.0 |
+| `xs_rank_mom_252_21` | percentile rank of `mom_252_21` | 252, 21 | close@tr | 253 | RANK_0_1 | ACADEMIC_REPLICATED | 1.0 |
+| `xs_z_mom_252_21` | cross-sectional z of momentum (winsorized) | 252, 21 | close@tr | 253 | ZSCORE | ACADEMIC_REPLICATED | 1.0 |
+| `rev_1m_21` | short-term reversal (−`ret_log_21`, ranked) | 21 | close@tr | 22 | RANK_0_1 | ACADEMIC_REPLICATED | 1.0 |
 | `beta_252` | OLS slope `ret_log_1 ~ mkt` (intercept; HEAVY) | 252 | close@tr, mkt | 253 | UNITLESS | ACADEMIC_REPLICATED | 1.1 |
 | `idio_vol_252` | per-bar std of residuals vs `mkt` (HEAVY) | 252 | close@tr, mkt | 253 | RETURN_STD_PER_BAR | ACADEMIC_REPLICATED | 1.1 |
 

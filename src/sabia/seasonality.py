@@ -10,6 +10,7 @@ from collections.abc import Callable
 
 import polars as pl
 
+from sabia._validate_params import positive_int
 from sabia.calendar import get_calendar
 from sabia.naming import naming
 from sabia.params import FrozenParams
@@ -50,6 +51,7 @@ def season_tom(*, k: int = 3) -> BoundFeature:
     month (the last-session test uses ``days_in_month``, knowable at t, not a look-ahead). Citation:
     Ariel (1987).
     """
+    positive_int("k", k)
     name = naming("season_tom", k)
 
     def build(s: BarSchema) -> pl.Expr:

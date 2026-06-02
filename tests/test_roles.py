@@ -116,4 +116,24 @@ def test_compute_names_xs_column_after_the_feature() -> None:
         schema=SCHEMA,
         universe=["AAA", "BBB", "CCC"],
     )
-    assert df.columns == ["xs_rank_mom_252", "rev_1m_21"]
+    assert df.columns == ["xs_rank_mom_252_21", "rev_1m_21"]
+
+
+# --- include_keys (identity columns aligned to feature rows) -----------------------------------
+
+
+def test_compute_include_keys_prepends_aligned_identity() -> None:
+    # Mixed TS + XS compute with include_keys must prepend symbol/timestamp aligned row-for-row with
+    # the input -- both the TS select and the XS evaluate preserve input row order.
+    panel = make_panel(300)
+    df = sabia.compute(
+        panel,
+        sabia.momentum.rsi(period=14),
+        sabia.cross_sectional.xs_rank_mom(),
+        schema=SCHEMA,
+        universe=["AAA", "BBB", "CCC"],
+        include_keys=True,
+    )
+    assert df.columns == ["symbol", "timestamp", "rsi_14", "xs_rank_mom_252_21"]
+    assert df.height == panel.height
+    assert df.select("symbol", "timestamp").equals(panel.select("symbol", "timestamp"))

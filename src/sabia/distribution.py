@@ -10,6 +10,7 @@ import polars as pl
 
 from sabia._expr import grouped
 from sabia._math import log_return, safe_div, safe_sqrt
+from sabia._validate_params import int_at_least
 from sabia.naming import naming
 from sabia.params import FrozenParams
 from sabia.references import Citation, Reference
@@ -32,6 +33,7 @@ def skew(*, window: int = 21, close: PriceRole = CLOSE_TR) -> BoundFeature:
 
     A flat window (zero dispersion) yields null. Citation: Campbell, Lo & MacKinlay (1997).
     """
+    int_at_least("window", window, 2)
     name = naming("skew", window)
 
     def build(s: BarSchema) -> pl.Expr:
@@ -46,6 +48,7 @@ def kurt(*, window: int = 21, close: PriceRole = CLOSE_TR) -> BoundFeature:
 
     A flat window yields null. Citation: Campbell, Lo & MacKinlay (1997).
     """
+    int_at_least("window", window, 2)
     name = naming("kurt", window)
 
     def build(s: BarSchema) -> pl.Expr:
@@ -62,6 +65,7 @@ def downside_dev(*, window: int = 21, close: PriceRole = CLOSE_TR) -> BoundFeatu
     ``min_horizontal``) keeps a null return null rather than imputing it to 0. Citation: Sortino &
     Van der Meer (1991).
     """
+    int_at_least("window", window, 2)
     name = naming("downside_dev", window)
 
     def build(s: BarSchema) -> pl.Expr:
@@ -86,6 +90,7 @@ def up_down_vol_ratio(*, window: int = 21, close: PriceRole = CLOSE_TR) -> Bound
     ``sqrt(mean(max(r,0)^2)) / sqrt(mean(min(r,0)^2))`` -- asymmetry of the return distribution.
     Zero downside (no losses in the window) yields null. Citation: Campbell, Lo & MacKinlay (1997).
     """
+    int_at_least("window", window, 2)
     name = naming("up_down_vol_ratio", window)
 
     def build(s: BarSchema) -> pl.Expr:

@@ -11,6 +11,7 @@ import polars as pl
 
 from sabia._expr import emit_after, grouped
 from sabia._math import safe_div, safe_log
+from sabia._validate_params import int_at_least, less_than
 from sabia.naming import naming
 from sabia.params import FrozenParams
 from sabia.references import Citation, Reference
@@ -39,6 +40,7 @@ _MED_LONG = (Horizon.MEDIUM, Horizon.LONG)
 
 def sma_dist(*, window: int = 50, close: PriceRole = CLOSE_TR) -> BoundFeature:
     """Distance of close from its SMA: ``close / SMA(window) - 1``. FINITE, RATIO."""
+    int_at_least("window", window, 2)
     name = naming("sma_dist", window)
 
     def build(s: BarSchema) -> pl.Expr:
@@ -66,6 +68,7 @@ def sma_dist(*, window: int = 50, close: PriceRole = CLOSE_TR) -> BoundFeature:
 
 def ema_dist(*, span: int = 50, close: PriceRole = CLOSE_TR) -> BoundFeature:
     """Distance of close from its EMA: ``close / EMA(span) - 1``. RECURSIVE_DECAY, RATIO."""
+    int_at_least("span", span, 2)  # EWM alpha = 2/(span+1) needs span >= 2 for alpha < 1
     name = naming("ema_dist", span)
     warmup = ewm_effective_warmup(2 / (span + 1))
 
@@ -99,6 +102,7 @@ def dist_52w_high(*, window: int = 252, close: PriceRole = CLOSE_TR) -> BoundFea
 
     The 52-week-high anomaly (George & Hwang 2004). Citation: George & Hwang (2004).
     """
+    int_at_least("window", window, 2)
     name = naming("dist_52w_high", window)
 
     def build(s: BarSchema) -> pl.Expr:
@@ -131,6 +135,7 @@ def price_pctile(*, window: int = 252, close: PriceRole = CLOSE_TR) -> BoundFeat
     Uses a rolling kernel (the fraction of the window <= current close) -- a HEAVY escape hatch
     (FEATURES.md 10), carried by the eager-vs-lazy and benchmark gates.
     """
+    int_at_least("window", window, 2)
     name = naming("price_pctile", window)
 
     def build(s: BarSchema) -> pl.Expr:
@@ -165,6 +170,7 @@ def ols_slope(*, window: int = 63, close: PriceRole = CLOSE_TR) -> BoundFeature:
     Computed in closed form from rolling sums (the window's x-values are a fixed ramp 0..w-1, so the
     denominator is constant) -- exact and vectorized, no per-row Python.
     """
+    int_at_least("window", window, 2)  # denom = window*(window^2 - 1)/12 is 0 at window=1
     name = naming("ols_slope", window)
     denom = window * (window * window - 1) / 12.0
     x_mean = (window - 1) / 2.0
@@ -196,6 +202,15 @@ def ols_slope(*, window: int = 63, close: PriceRole = CLOSE_TR) -> BoundFeature:
     )
 
 
+def _check_macd_params(fast: int, slow: int, signal: int) -> None:
+    # Each leg is an EWM span (alpha = 2/(n+1) needs n >= 2), and the line is EMA(fast) - EMA(slow),
+    # so a meaningful MACD needs fast < slow.
+    int_at_least("fast", fast, 2)
+    int_at_least("slow", slow, 2)
+    int_at_least("signal", signal, 2)
+    less_than("fast", fast, "slow", slow)
+
+
 def _macd_raw(s: BarSchema, close: PriceRole, fast: int, slow: int) -> pl.Expr:
     c = pl.col(s.column(close))
     ema_fast = c.ewm_mean(span=fast, adjust=False, min_samples=fast)
@@ -213,6 +228,7 @@ def macd(
     *, fast: int = 12, slow: int = 26, signal: int = 9, close: PriceRole = CLOSE_TR
 ) -> BoundFeature:
     """MACD line: ``EMA(fast) - EMA(slow)`` of close. RECURSIVE_DECAY, LOG_RETURN. Appel (1979)."""
+    _check_macd_params(fast, slow, signal)
     name = naming("macd", fast, slow, signal)
     warmup, _ = _macd_warmup(slow, signal)
 
@@ -228,6 +244,7 @@ def macd_signal(
     *, fast: int = 12, slow: int = 26, signal: int = 9, close: PriceRole = CLOSE_TR
 ) -> BoundFeature:
     """MACD signal: ``EMA(signal)`` of the MACD line. RECURSIVE_DECAY, LOG_RETURN."""
+    _check_macd_params(fast, slow, signal)
     name = naming("macd", fast, slow, signal, suffix="signal")
     _, warmup = _macd_warmup(slow, signal)
 
@@ -244,6 +261,7 @@ def macd_hist(
     *, fast: int = 12, slow: int = 26, signal: int = 9, close: PriceRole = CLOSE_TR
 ) -> BoundFeature:
     """MACD histogram: ``MACD line - signal``. RECURSIVE_DECAY, LOG_RETURN."""
+    _check_macd_params(fast, slow, signal)
     name = naming("macd", fast, slow, signal, suffix="hist")
     _, warmup = _macd_warmup(slow, signal)
 
@@ -286,6 +304,7 @@ def _macd_feature(
 
 def sma(*, window: int = 50, close: PriceRole = CLOSE_TR) -> BoundFeature:
     """Simple moving average level of close. FINITE, PRICE_UNITS. (Extra, beyond §12.)"""
+    int_at_least("window", window, 2)
     name = naming("sma", window)
 
     def build(s: BarSchema) -> pl.Expr:
@@ -312,6 +331,7 @@ def sma(*, window: int = 50, close: PriceRole = CLOSE_TR) -> BoundFeature:
 
 def ema(*, span: int = 12, close: PriceRole = CLOSE_TR) -> BoundFeature:
     """Exponential moving average level of close. RECURSIVE_DECAY. (Extra, beyond §12.)"""
+    int_at_least("span", span, 2)
     name = naming("ema", span)
     warmup = ewm_effective_warmup(2 / (span + 1))
 
@@ -345,6 +365,7 @@ def adx(
     close: PriceRole = CLOSE_SPLIT,
 ) -> BoundFeature:
     """Average Directional Index, in [0, 100] (Wilder 1978). RECURSIVE_DECAY. (Extra.)"""
+    int_at_least("window", window, 2)  # RMA alpha = 1/window needs window >= 2 for alpha < 1
     name = naming("adx", window)
     warmup = 2 * ewm_effective_warmup(1 / window) + 2 * window
 

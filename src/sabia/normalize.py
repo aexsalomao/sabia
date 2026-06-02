@@ -14,6 +14,7 @@ from dataclasses import dataclass
 
 import polars as pl
 
+from sabia._validate_params import int_at_least, positive, positive_int
 from sabia.params import FrozenParams
 from sabia.spec import (
     REQUIRE_FULL_WINDOW,
@@ -67,6 +68,7 @@ def zscore(window: int, *, over: str | None = None) -> BoundTransform:
     ``null`` rather than ``inf`` (FEATURES.md 4.5). Pass ``over`` to compute the rolling statistics
     within each group (e.g. per symbol on a panel).
     """
+    int_at_least("window", window, 2)
 
     def apply(expr: pl.Expr) -> pl.Expr:
         mean = expr.rolling_mean(window, min_samples=window)
@@ -141,6 +143,8 @@ def frac_diff(
     lags of the input. ``d == 0`` returns the input unchanged; ``d == 1`` reduces to a first
     difference. Pass ``over`` to lag within each group (per symbol on a panel).
     """
+    positive("threshold", threshold)
+    positive_int("max_lag", max_lag)
     weights = _ffd_weights(d, threshold=threshold, max_lag=max_lag)
 
     def apply(expr: pl.Expr) -> pl.Expr:

@@ -13,6 +13,7 @@ import polars as pl
 
 from sabia._expr import grouped
 from sabia._math import log_return, safe_div, safe_sqrt
+from sabia._validate_params import int_at_least, less_than, non_negative_int, positive_int
 from sabia.naming import naming
 from sabia.params import FrozenParams
 from sabia.references import Citation, Reference
@@ -26,6 +27,9 @@ _JT = Reference("Jegadeesh & Titman", 1993)
 
 def _xs_rank_reduce(s: BarSchema) -> pl.Expr:
     # Ascending percentile rank in (0, 1] within each timestamp slice; ties take the average rank.
+    # Null behavior (FEATURES.md 4.5): a null signal is excluded from BOTH the rank and the
+    # denominator -- `count()` counts non-null values -- and stays null in the output. So with k
+    # valid names and one null at a timestamp, the k valid names rank over k, and the null is null.
     sig = pl.col(XS_SIGNAL_COLUMN)
     return sig.rank(method="average").over(s.timestamp_col) / sig.count().over(s.timestamp_col)
 
@@ -46,7 +50,10 @@ def xs_rank_mom(
     The canonical Jegadeesh-Titman momentum factor: rank each name's 12-1 momentum across the
     universe at each date. Citation: Jegadeesh & Titman (1993).
     """
-    name = naming("xs_rank_mom", formation)
+    positive_int("formation", formation)
+    non_negative_int("skip", skip)
+    less_than("skip", skip, "formation", formation)
+    name = naming("xs_rank_mom", formation, skip)
 
     def signal(s: BarSchema) -> pl.Expr:
         c = pl.col(s.column(close))
@@ -68,7 +75,10 @@ def xs_z_mom(*, formation: int = 252, skip: int = 21, close: PriceRole = CLOSE_T
 
     Citation: Jegadeesh & Titman (1993).
     """
-    name = naming("xs_z_mom", formation)
+    positive_int("formation", formation)
+    non_negative_int("skip", skip)
+    less_than("skip", skip, "formation", formation)
+    name = naming("xs_z_mom", formation, skip)
 
     def signal(s: BarSchema) -> pl.Expr:
         c = pl.col(s.column(close))
@@ -90,6 +100,7 @@ def rev_1m(*, window: int = 21, close: PriceRole = CLOSE_TR) -> BoundFeature:
 
     Recent losers rank high (they tend to rebound). Citation: Jegadeesh (1990).
     """
+    positive_int("window", window)
     name = naming("rev_1m", window)
 
     def signal(s: BarSchema) -> pl.Expr:
@@ -169,6 +180,7 @@ def beta(
     A flat market window (zero variance) -> null. FINITE, UNITLESS. The CAPM slope (Sharpe 1964),
     estimated rolling per name. Citation: Sharpe (1964); empirically Fama & MacBeth (1973).
     """
+    int_at_least("window", window, 2)
     name = naming("beta", window)
 
     def build(s: BarSchema) -> pl.Expr:
@@ -197,6 +209,7 @@ def idio_vol(
     explain. A flat market window -> null. FINITE, per-bar. Citation: Ang, Hodrick, Xing & Zhang
     (2006) (the idiosyncratic-volatility anomaly).
     """
+    int_at_least("window", window, 2)
     name = naming("idio_vol", window)
 
     def build(s: BarSchema) -> pl.Expr:

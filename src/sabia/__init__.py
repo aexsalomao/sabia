@@ -30,6 +30,7 @@ from sabia import (
     mean_reversion,
     momentum,
     normalize,
+    recipes,
     returns,
     seasonality,
     trend,
@@ -61,6 +62,14 @@ from sabia.spec import (
     Unit,
     ValidationMode,
 )
+from sabia.toolkit import (
+    FeatureSet,
+    describe,
+    drop_warmup,
+    max_min_history,
+    required_columns,
+    required_roles,
+)
 from sabia.typing import (
     Adjustment,
     CalendarRole,
@@ -72,7 +81,7 @@ from sabia.typing import (
     VolumeField,
     VolumeRole,
 )
-from sabia.validate import SabiaValidationError, validate
+from sabia.validate import FrameAudit, SabiaValidationError, audit_frame, validate
 
 __version__ = "0.2.0"
 
@@ -84,25 +93,32 @@ def compute(
     schema: BarSchema,
     validation: ValidationMode = ValidationMode.STRICT,
     universe: Sequence[str] | None = None,
-    membership_asof: object = None,
+    membership: pl.DataFrame | pl.LazyFrame | None = None,
+    include_keys: bool = False,
 ) -> pl.DataFrame:
     """Materialize bound features, resolving their roles against ``schema`` (FEATURES.md 4.2).
 
     Time-series features fuse into a single ``select``; cross-sectional features (which carry a
     per-symbol ``signal``) are evaluated two-pass each. A single ``compute`` rejects two same-named
     expressions (FEATURES.md 4.3). ``validation`` runs the input contract first (STRICT by default).
-    ``universe`` / ``membership_asof`` declare the cross-sectional universe (FEATURES.md 2.5); pass
-    them when any feature ``requires_universe`` so completeness is checked against the declared
-    universe rather than inferred from the symbols that happen to be present.
+    ``universe`` (a static symbol set) / ``membership`` (an as-of ``(symbol, start, end)`` frame)
+    declare the cross-sectional universe (FEATURES.md 2.5); pass one when any feature
+    ``requires_universe`` so completeness is checked against the declared universe rather than
+    inferred from the symbols that happen to be present.
+
+    The result carries only the feature columns, aligned row-for-row with ``frame``. Set
+    ``include_keys=True`` to prepend the identity columns (``schema.symbol_col`` when the frame is a
+    panel, and ``schema.timestamp_col``) -- what a downstream pipeline usually wants.
     """
     feats = (bound_feature, *more)
     assert_unique(f.spec.name for f in feats)
     if validation is not ValidationMode.OFF:
         required: frozenset[InputRole] = frozenset().union(*(f.spec.input_roles for f in feats))
-        if universe is None and any(f.spec.requires_universe for f in feats):
+        if universe is None and membership is None and any(f.spec.requires_universe for f in feats):
             raise ValueError(
-                "a cross-sectional feature requires_universe=True; pass universe=... to compute() "
-                "(sabia asserts completeness against the declared universe, never infers it)"
+                "a cross-sectional feature requires_universe=True; pass universe=... or "
+                "membership=... to compute() (sabia asserts completeness against the declared "
+                "universe, never infers it)"
             )
         validate(
             frame,
@@ -110,7 +126,7 @@ def compute(
             required_roles=required,
             complete_panel=any(f.spec.requires_complete_panel for f in feats),
             universe=universe,
-            membership_asof=membership_asof,
+            membership=membership,
             mode=validation,
         )
     base = frame.lazy()
@@ -121,6 +137,8 @@ def compute(
         else None
     )
     columns: list[pl.Series] = []
+    if include_keys:
+        columns.extend(_key_columns(base, schema))
     for f in feats:
         if f.signal is None:
             assert ts_frame is not None  # ts_feats is non-empty whenever a TS feature exists
@@ -130,6 +148,17 @@ def compute(
     return pl.DataFrame(columns)
 
 
+def _key_columns(base: pl.LazyFrame, schema: BarSchema) -> list[pl.Series]:
+    """The identity columns to prepend under ``include_keys`` -- symbol (if a panel) + timestamp.
+
+    Read from the input frame in its original row order, which the feature ``select``/``evaluate``
+    paths both preserve, so the keys align row-for-row with the feature columns.
+    """
+    names = base.collect_schema().names()
+    key_cols = [c for c in (schema.symbol_col, schema.timestamp_col) if c in names]
+    return base.select(key_cols).collect().get_columns()
+
+
 def compute_lazy(
     frame: pl.DataFrame | pl.LazyFrame,
     *features: BoundFeature,
@@ -137,7 +166,10 @@ def compute_lazy(
 ) -> pl.LazyFrame:
     """Lazy ``select`` of time-series features (the fused path; used by the eager-vs-lazy gate).
 
-    Cross-sectional features are inherently two-pass; pass them to ``compute`` instead.
+    Unlike ``compute``, this path does **not** validate the input contract -- it stays lazy and
+    materializes nothing. Call ``sabia.validate(frame, schema=...)`` yourself first if the frame is
+    untrusted, or use ``compute`` for the validated path. Cross-sectional features are inherently
+    two-pass; pass them to ``compute`` instead.
     """
     if any(f.signal is not None for f in features):
         raise ValueError("compute_lazy supports time-series features only; use compute() for XS")
@@ -157,8 +189,10 @@ __all__ = [
     "FactorRole",
     "Family",
     "FeatureRef",
+    "FeatureSet",
     "FeatureSetManifest",
     "FeatureSpec",
+    "FrameAudit",
     "FrozenParams",
     "FrozenRegistryError",
     "Horizon",
@@ -179,17 +213,24 @@ __all__ = [
     "VolumeRole",
     "__version__",
     "assert_unique",
+    "audit_frame",
     "bind_feature",
     "compute",
     "compute_lazy",
     "cross_sectional",
+    "describe",
     "distribution",
+    "drop_warmup",
     "evaluate",
     "get_calendar",
+    "max_min_history",
     "mean_reversion",
     "momentum",
     "naming",
     "normalize",
+    "recipes",
+    "required_columns",
+    "required_roles",
     "returns",
     "seasonality",
     "trend",
