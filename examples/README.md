@@ -17,6 +17,7 @@ python examples/01_quickstart.py
 | `05_cross_sectional.py` | Panel features: cross-sectional rank, market `beta`, `idio_vol`; the universe contract. |
 | `06_normalize.py` | Normalization transforms: rolling `zscore`, cross-sectional `xs_rank`, `frac_diff`. |
 | `07_manifest.py` | Fingerprints and `FeatureSetManifest` — pinning a feature set for reproducibility. |
+| [`notebooks/`](notebooks/README.md) | Plotly **data-viz gallery** — each notebook charts a well-known market concept (volatility clustering, fat tails, momentum, fractional differentiation) with sabia features. |
 
 ## The mental model
 
