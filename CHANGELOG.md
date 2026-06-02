@@ -6,6 +6,51 @@ All notable changes to `sabia` are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-06-02
+
+Acting on an internal code review: correcting features whose formulas diverged from the FEATURES.md
+§12 contract or their cited literature, plus closing the §9 production-gate test coverage. The
+corrected formulas change output values and several feature fingerprints, so the pinned manifest is
+regenerated in the same change (breaking, pre-1.0).
+
+### Changed (breaking — corrected feature output & fingerprints)
+
+- **`cci_20`** now uses the canonical single-window mean-absolute-deviation (was a trailing-mean
+  variant); `min_history` 39 → 20 per §12.
+- **`amihud_21`** uses the absolute log return (was a simple return), matching §4.6 and the
+  library-wide `ret@tr` basis.
+- **`var_ratio_2_21`** is now the Lo–MacKinlay bias-corrected estimator (matches the citation);
+  `min_history` 22 → 23.
+- **`cmf_21`** treats a flat (doji) bar as a zero money-flow contribution instead of nulling the
+  whole window.
+- **`season_tom_k`** flags the last session of the month plus the first `k` sessions (was a
+  symmetric first-`k`/last-`k` window).
+- **`xs_z_mom_252_21`** winsorizes within each timestamp slice (±3σ) before standardizing (§4.6).
+- Float feature params are canonicalized via `float.hex()` for platform-stable fingerprints (§3.5),
+  so `vol_ewma_0p94`, `bb_pctb_20_2`, `bb_bw_20_2` (and other float-param features) get new
+  fingerprints. The pinned manifest is regenerated to match.
+- `evaluate` is no longer re-exported at the top level (`sabia.evaluate`); it remains available as
+  `sabia.registry.evaluate`.
+
+### Added
+
+- **`winsorize=`** parameter on the `normalize.xs_zscore` transform (default `None`, no behavior
+  change for existing callers).
+- §9 production-gate tests: eager-vs-lazy parity, chunked-vs-rechunked parity (both registry-
+  parametrized, covering the HEAVY/`rolling_map` kernels), `ValidationMode` RESEARCH/OFF semantics,
+  `validate()` OHLC-ordering rejection, symbol-isolation perturb-twin, input-order invariance,
+  registry immutability, all-null inputs, float-param fingerprint stability, and a deterministic
+  `future_bars=1` causality boundary.
+
+### Fixed
+
+- Cross-sectional momentum signals route through `safe_log` (no-NaN consistency, §4.5).
+- `frac_diff` uses a tighter weight-truncation threshold for slow-decaying long memory.
+- `BarSchema.ohlcv()` documents that, without `tr_close`, `close@tr`/`open@tr` are backed by the
+  split-only columns (a silent basis conflation on dividend-paying instruments).
+- `FEATURES.md` §12 reconciled with the code (macd per-output warmups 180/242/242, `var_ratio`
+  `min_history` 23, `xs_rank` percentile range `(0,1]`).
+
 ## [0.3.0] - 2026-06-02
 
 Acting on an external audit: closing gaps where the code did not honor its own contracts, plus
