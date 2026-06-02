@@ -13,10 +13,12 @@ from pathlib import Path
 
 import polars as pl
 import pytest
+from conftest import assert_series_close
 from synthetic import SCHEMA
 
 import sabia
 from sabia.registry import Registry, evaluate
+from sabia.spec import DEFAULT_FLOAT_TOLERANCE
 
 _FIXTURE = Path(__file__).parent / "data" / "marketgoblin_panel.parquet"
 _FLOAT_DTYPES = (pl.Float32, pl.Float64)
@@ -117,5 +119,6 @@ def test_causality_truncating_panel_does_not_change_prefix() -> None:
     full = evaluate(aapl, feature, SCHEMA)
     truncated = evaluate(aapl.head(aapl.height - 200), feature, SCHEMA)
     head_full = full.head(truncated.len())
-    a = head_full.drop_nulls().to_numpy()
-    assert (truncated.drop_nulls().to_numpy() == a).all()
+    # Same computation on a prefix: values must match the full-history prefix within tolerance
+    # (use the shared helper rather than a raw float ==, per CLAUDE.md float-comparison rule).
+    assert_series_close(truncated, head_full, rtol=0.0, atol=DEFAULT_FLOAT_TOLERANCE)

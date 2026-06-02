@@ -11,7 +11,7 @@ from math import sqrt
 import polars as pl
 
 from sabia._expr import grouped
-from sabia._math import safe_div, safe_log, safe_sqrt
+from sabia._math import log_return, safe_div, safe_log, safe_sqrt
 from sabia._validate_params import int_at_least
 from sabia.naming import naming
 from sabia.params import FrozenParams
@@ -69,6 +69,8 @@ def amihud(
 ) -> BoundFeature:
     """Amihud (2002) illiquidity: rolling mean of ``|ret@tr| / dollar_volume@raw``. FINITE, RATIO.
 
+    ``ret@tr`` is the log return ``ln(close / close.shift(1))`` (returns are log unless named
+    otherwise, FEATURES.md 4.6); illiquidity averages ``|log return| / dollar_volume@raw``.
     Zero dollar volume (a halted bar) yields null, not inf -- there is no price impact to measure.
     """
     int_at_least("window", window, 2)
@@ -76,7 +78,7 @@ def amihud(
 
     def build(s: BarSchema) -> pl.Expr:
         c = pl.col(s.column(close))
-        abs_return = safe_div(c - c.shift(1), c.shift(1)).abs()
+        abs_return = log_return(c, c.shift(1)).abs()
         ratio = safe_div(abs_return, pl.col(s.column(dvol)))
         value = ratio.rolling_mean(window, min_samples=window)
         return grouped(value, s.symbol_col).alias(name)
@@ -135,7 +137,13 @@ def cmf(
     close: PriceRole = CLOSE_SPLIT,
     volume: VolumeRole = VOLUME_SPLIT,
 ) -> BoundFeature:
-    """Chaikin Money Flow over ``window`` bars, in [-1, 1]. FINITE. Citation: Chaikin."""
+    """Chaikin Money Flow over ``window`` bars, in [-1, 1]. FINITE. Citation: Chaikin.
+
+    A flat (doji) bar where ``high == low`` contributes ZERO money flow (multiplier = 0), per
+    canonical Chaikin CMF -- its volume still counts toward the denominator. This is the benign
+    flat-bar case, distinct from a halt (FEATURES.md 2.4); without it a single doji would null the
+    whole REQUIRE_FULL_WINDOW window (FEATURES.md 4.5).
+    """
     int_at_least("window", window, 2)
     name = naming("cmf", window)
 
@@ -146,7 +154,7 @@ def cmf(
             pl.col(s.column(close)),
             pl.col(s.column(volume)),
         )
-        multiplier = safe_div(2 * c - h - low_, h - low_)
+        multiplier = pl.when(h == low_).then(0.0).otherwise(safe_div(2 * c - h - low_, h - low_))
         money_flow_volume = multiplier * v
         value = safe_div(
             money_flow_volume.rolling_sum(window, min_samples=window),

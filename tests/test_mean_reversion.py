@@ -66,6 +66,36 @@ def test_var_ratio_is_positive_and_finite_on_varied_series() -> None:
     assert out.min() > 0.0 and out.is_finite().all()
 
 
+def test_var_ratio_lo_mackinlay_reference_value() -> None:
+    # Lo-MacKinlay (1988) unbiased VR(q=2) over a window of T=5 one-bar returns, hand-computed.
+    # closes = [100, 101, 99, 102, 98, 103, 97, 104]; at the last bar (index 7) the window covers
+    # the 5 one-bar log returns r1 = ln(c_i/c_{i-1}) for i = 3..7:
+    #   r1 = [0.02985296314968113, -0.04000533461369913, 0.0497615095590638,
+    #         -0.06001800972625292, 0.0696799206379898]
+    #   mean1 = 0.009854209801356536
+    #   var_a = sum((r1 - mean1)^2) / (T - 1) = 0.00323493990438461     [unbiased, divisor T-1=4]
+    # The T-q+1 = 4 overlapping 2-bar log returns rq = ln(c_i/c_{i-2}) for i = 4..7:
+    #   rq = [-0.010152371464017962, 0.009756174945364656,
+    #         -0.01025650016718911, 0.00966191091173689]
+    #   m = q*(T-q+1)*(1 - q/T) = 2 * 4 * (1 - 2/5) = 4.8     [overlap-bias correction]
+    #   var_c = sum((rq - q*mean1)^2) / m = 0.0004144880771969206
+    # VR = var_c / var_a = 0.0004144880771969206 / 0.00323493990438461 = 0.1281285246242525
+    closes = [100.0, 101.0, 99.0, 102.0, 98.0, 103.0, 97.0, 104.0]
+    out = _frame(closes).select(var_ratio(q=2, window=5).expr(SCHEMA)).to_series()
+    assert out[7] == pytest.approx(0.1281285246242525, abs=TOL)
+
+
+def test_var_ratio_centers_near_one_for_a_random_walk() -> None:
+    import numpy as np
+
+    # The LM bias correction makes VR an unbiased estimator: a random walk should hover near 1.
+    rng = np.random.default_rng(0)
+    rets = rng.normal(0.0, 0.01, 5000)
+    closes = [100.0, *(100.0 * np.exp(np.cumsum(rets))).tolist()]
+    out = _frame(closes).select(var_ratio(q=2, window=250).expr(SCHEMA)).to_series().drop_nulls()
+    assert out.mean() == pytest.approx(1.0, abs=0.05)
+
+
 def test_half_life_finite_and_positive_for_mean_reverting_series() -> None:
     import numpy as np
 

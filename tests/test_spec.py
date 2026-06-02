@@ -134,6 +134,30 @@ def test_fingerprint_folds_module_constants() -> None:
     assert "_CCI_SCALE=0.015" in payload
 
 
+def test_float_param_fingerprint_is_stable_across_equivalent_constructions() -> None:
+    # FEATURES.md 3.5 / params._canonical_float: equal floats built different ways (0.94 vs 94/100)
+    # must canonicalize identically, so the fingerprint is stable -- not repr-sensitive.
+    assert 0.94 == 94 / 100  # the two constructions genuinely compare equal
+    a = _fp(_rsi_formatted, FrozenParams(lam=0.94), roles=(CLOSE_TR,))
+    b = _fp(_rsi_formatted, FrozenParams(lam=94 / 100), roles=(CLOSE_TR,))
+    assert a == b
+
+
+def test_negative_zero_param_canonicalizes_like_positive_zero() -> None:
+    # -0.0 == 0.0 but float.hex distinguishes them; the canonical form collapses them, so a feature
+    # bound with -0.0 fingerprints identically to one bound with 0.0.
+    assert _fp(_rsi_formatted, FrozenParams(x=-0.0)) == _fp(_rsi_formatted, FrozenParams(x=0.0))
+
+
+@given(scaled=st.integers(min_value=1, max_value=10_000))
+def test_float_param_fingerprint_stable_for_any_equivalent_pair(scaled: int) -> None:
+    # For any float expressible as scaled/100, the literal and the division must fingerprint alike.
+    literal = scaled / 100.0
+    assert _fp(_rsi_formatted, FrozenParams(lam=literal)) == _fp(
+        _rsi_formatted, FrozenParams(lam=scaled / 100)
+    )
+
+
 def test_parity_tolerance_is_derived_with_headroom_over_warmup() -> None:
     # Review finding #5: the two tolerances must stay coupled so tightening one tightens the other,
     # and the burn-in must always be tighter than what parity asserts.

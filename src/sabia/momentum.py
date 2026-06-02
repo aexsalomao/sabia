@@ -234,19 +234,21 @@ def cci(
 ) -> BoundFeature:
     """Commodity Channel Index: typical price vs its rolling mean, scaled by mean deviation. FINITE.
 
-    Uses the deviation-from-rolling-mean form of the mean absolute deviation (a pure-expression
-    variant). A flat window (zero deviation) yields null. Citation: Lambert (1980).
+    Canonical Lambert form: ``(TP - SMA(TP)) / (0.015 * MAD)``, where MAD is the single-window
+    mean absolute deviation ``(1/n)*sum|TP_i - SMA(TP)|`` with ``SMA(TP)`` held constant across all
+    ``n`` window terms. Computed via a rolling kernel -- a HEAVY escape hatch (FEATURES.md 10) -- so
+    each term subtracts the one current-window mean, not a per-bar trailing mean. A flat window
+    (zero deviation) yields null. Citation: Lambert (1980).
     """
-    int_at_least("window", window, 2)  # mad is a rolling mean of (tp - sma); window=1 is always 0
+    int_at_least("window", window, 2)  # mad over a 1-bar window is always 0
     name = naming("cci", window)
-    # The mean-deviation is a rolling mean of (tp - sma_tp), and sma_tp is itself a window-bar
-    # rolling mean -- so the first non-null CCI lands only after 2*window-1 bars, not window.
-    min_history = 2 * window - 1
 
     def build(s: BarSchema) -> pl.Expr:
         tp = (pl.col(s.column(high)) + pl.col(s.column(low)) + pl.col(s.column(close))) / 3.0
         sma_tp = tp.rolling_mean(window, min_samples=window)
-        mad = (tp - sma_tp).abs().rolling_mean(window, min_samples=window)
+        mad = tp.rolling_map(
+            lambda w: (w - w.mean()).abs().mean(), window_size=window, min_samples=window
+        )
         value = safe_div(tp - sma_tp, _CCI_SCALE * mad)
         return grouped(value, s.symbol_col).alias(name)
 
@@ -256,10 +258,10 @@ def cci(
         family=Family.MOMENTUM,
         native_band=_BANDS,
         lookback=window,
-        min_history=min_history,
+        min_history=window,
         recurrence=Recurrence.FINITE,
-        effective_warmup=min_history,
-        cost_class=Cost.LINEAR,
+        effective_warmup=window,
+        cost_class=Cost.HEAVY,
         input_roles=(high, low, close),
         output_unit=Unit.UNITLESS,
         evidence=Evidence.TA_CANON,

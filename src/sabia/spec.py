@@ -228,6 +228,10 @@ def _strip_docstring(node: ast.Module | ast.FunctionDef | ast.AsyncFunctionDef) 
         del body[0]
 
 
+# Deterministic memoization, not banned mutable state (FEATURES.md 3.3): the cache maps a function's
+# identity to the pure, immutable result of hashing its source. The output depends only on ``fn``'s
+# code, never on call order or external state, so it is purely a build-time speedup -- repeatability
+# is unaffected. (3.3 bans state that changes a feature's *output*; this changes nothing visible.)
 @functools.cache
 def _normalized_source(fn: Callable[..., object]) -> str:
     """Canonical, formatting-, comment- and docstring-independent source for ``fn``.
@@ -256,6 +260,10 @@ def _normalized_source(fn: Callable[..., object]) -> str:
 _CONSTANT_TYPES = (int, float, str, bool, tuple)
 
 
+# Deterministic memoization, not banned mutable state (FEATURES.md 3.3): like
+# ``_normalized_source``, this is a pure function-identity -> result mapping (the constants ``fn``
+# reads are fixed by its source). Caching only avoids recomputing the same AST walk; it never
+# affects what is produced.
 @functools.cache
 def _module_constants(fn: Callable[..., object]) -> tuple[str, ...]:
     """``name=repr(value)`` for every module-level scalar/tuple constant ``fn`` reads by name.

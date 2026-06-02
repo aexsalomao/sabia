@@ -6,6 +6,7 @@ import polars as pl
 import pytest
 
 from sabia.schema import BarSchema
+from sabia.spec import ValidationMode
 from sabia.typing import (
     CLOSE_SPLIT,
     CLOSE_TR,
@@ -223,3 +224,84 @@ def test_malformed_membership_frame_rejected(ipo_panel: pl.DataFrame) -> None:
     bad = pl.DataFrame({"symbol": ["AAA"], "start": _ts(0)})  # missing 'end'
     with pytest.raises(SabiaValidationError, match="missing column"):
         validate(ipo_panel, schema=CLOSE_SCHEMA, complete_panel=True, membership=bad)
+
+
+# --- OHLC ordering rejection (FEATURES.md 2.1, 8.3) --------------------------------------------
+
+
+def test_well_ordered_ohlc_passes(single_series: pl.DataFrame) -> None:
+    # Positive control: low <= min(o,c) <= max(o,c) <= high holds, so validate must accept it.
+    validate(single_series, schema=OHLCV_SCHEMA, required_roles=[CLOSE_SPLIT])
+
+
+def test_high_below_close_rejected(single_series: pl.DataFrame) -> None:
+    # Push high under close on one bar: max(open, close) > high violates the ordering contract.
+    bad = single_series.with_columns(
+        pl.when(pl.int_range(pl.len()) == 1).then(0.1).otherwise(pl.col("high")).alias("high")
+    )
+    with pytest.raises(SabiaValidationError, match="OHLC ordering"):
+        validate(bad, schema=OHLCV_SCHEMA, mode=ValidationMode.STRICT)
+
+
+def test_low_above_open_rejected(single_series: pl.DataFrame) -> None:
+    # Push low above open on one bar: low > min(open, close) violates the ordering contract.
+    bad = single_series.with_columns(
+        pl.when(pl.int_range(pl.len()) == 2).then(99.0).otherwise(pl.col("low")).alias("low")
+    )
+    with pytest.raises(SabiaValidationError, match="OHLC ordering"):
+        validate(bad, schema=OHLCV_SCHEMA, mode=ValidationMode.STRICT)
+
+
+# --- ValidationMode RESEARCH / OFF semantics (FEATURES.md 8.3) ---------------------------------
+
+
+def test_research_warns_on_incomplete_cross_section_without_raising(panel: pl.DataFrame) -> None:
+    # Drop BBB's first timestamp: STRICT raises, but RESEARCH only warns on completeness.
+    incomplete = panel.filter(~((pl.col("symbol") == "BBB") & (pl.col("timestamp") == _ts(0)[0])))
+    warnings = validate(
+        incomplete, schema=CLOSE_SCHEMA, complete_panel=True, mode=ValidationMode.RESEARCH
+    )
+    assert len(warnings) == 1
+    assert "missing symbols" in warnings[0]
+
+
+def test_research_warns_on_non_final_bars_without_raising() -> None:
+    # A frame with an is_final=False bar: RESEARCH warns on finalization, never raises.
+    schema = BarSchema(roles={CLOSE_TR: "close"}, closed_col="is_final")
+    frame = pl.DataFrame({"timestamp": _ts(0, 1), "close": [1.0, 1.1], "is_final": [True, False]})
+    warnings = validate(frame, schema=schema, mode=ValidationMode.RESEARCH)
+    assert len(warnings) == 1
+    assert "not final" in warnings[0]
+
+
+def test_research_still_raises_on_dtype_violation(single_series: pl.DataFrame) -> None:
+    # Schema/dtype/role/order always raise regardless of mode (FEATURES.md 8.3).
+    int_close = single_series.with_columns(pl.col("close").cast(pl.Int64))
+    with pytest.raises(SabiaValidationError, match="float"):
+        validate(
+            int_close, schema=OHLCV_SCHEMA, required_roles=[CLOSE_TR], mode=ValidationMode.RESEARCH
+        )
+
+
+def test_research_still_raises_on_unsorted_duplicate_timestamps(
+    single_series: pl.DataFrame,
+) -> None:
+    # Duplicate/unsorted timestamps are an ordering violation: RESEARCH must still raise.
+    dupe = pl.concat([single_series.head(1), single_series]).sort("timestamp")
+    with pytest.raises(SabiaValidationError, match="strictly increasing"):
+        validate(dupe, schema=OHLCV_SCHEMA, mode=ValidationMode.RESEARCH)
+
+
+def test_off_returns_no_warnings_on_incomplete_cross_section(panel: pl.DataFrame) -> None:
+    # OFF skips every check, so a frame STRICT would reject for completeness passes silently.
+    incomplete = panel.filter(~((pl.col("symbol") == "BBB") & (pl.col("timestamp") == _ts(0)[0])))
+    assert (
+        validate(incomplete, schema=CLOSE_SCHEMA, complete_panel=True, mode=ValidationMode.OFF)
+        == []
+    )
+
+
+def test_strict_raises_on_the_same_incomplete_cross_section(panel: pl.DataFrame) -> None:
+    incomplete = panel.filter(~((pl.col("symbol") == "BBB") & (pl.col("timestamp") == _ts(0)[0])))
+    with pytest.raises(SabiaValidationError, match="missing symbols"):
+        validate(incomplete, schema=CLOSE_SCHEMA, complete_panel=True, mode=ValidationMode.STRICT)

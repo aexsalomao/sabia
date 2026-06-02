@@ -47,8 +47,10 @@ from sabia.registry import (
     FrozenRegistryError,
     Registry,
     bind_feature,
-    evaluate,
 )
+from sabia.registry import (
+    evaluate as _evaluate,
+)  # internal two-pass helper; not a public export (L5)
 from sabia.schema import BarSchema
 from sabia.spec import (
     Cost,
@@ -109,6 +111,13 @@ def compute(
     The result carries only the feature columns, aligned row-for-row with ``frame``. Set
     ``include_keys=True`` to prepend the identity columns (``schema.symbol_col`` when the frame is a
     panel, and ``schema.timestamp_col``) -- what a downstream pipeline usually wants.
+
+    Cost note (FEATURES.md 10): all time-series features fuse into a single ``select`` -- one
+    ``collect()``. Each cross-sectional feature, however, is materialized by its own eager
+    ``evaluate`` because Polars cannot nest ``.over(symbol)`` inside ``.over(timestamp)`` in one
+    expression, so the collect count grows linearly with the number of XS features (an N+1 pattern:
+    one fused TS collect plus one per XS feature). Batch many XS features per ``compute`` only when
+    the materialization cost is acceptable.
     """
     feats = (bound_feature, *more)
     assert_unique(f.spec.name for f in feats)
@@ -144,7 +153,7 @@ def compute(
             assert ts_frame is not None  # ts_feats is non-empty whenever a TS feature exists
             columns.append(ts_frame.get_column(f.spec.name))
         else:
-            columns.append(evaluate(base, f, schema))
+            columns.append(_evaluate(base, f, schema))
     return pl.DataFrame(columns)
 
 
@@ -221,7 +230,6 @@ __all__ = [
     "describe",
     "distribution",
     "drop_warmup",
-    "evaluate",
     "get_calendar",
     "max_min_history",
     "mean_reversion",

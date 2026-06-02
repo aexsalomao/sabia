@@ -6,7 +6,7 @@ from synthetic import SCHEMA
 
 from sabia.params import FrozenParams
 from sabia.references import Citation, Reference
-from sabia.registry import BoundFeature, Registry, bind_feature
+from sabia.registry import BoundFeature, FrozenRegistryError, Registry, bind_feature
 from sabia.schema import BarSchema
 from sabia.spec import Cost, DataTier, Evidence, Family, Horizon, Recurrence, Unit
 from sabia.typing import CLOSE_TR
@@ -106,3 +106,31 @@ def test_contains_checks_name() -> None:
 def test_expr_returns_expression() -> None:
     feature = _feature("rsi_14")
     assert isinstance(feature.expr(SCHEMA), pl.Expr)
+
+
+# --- registry immutability (FEATURES.md 7) -----------------------------------------------------
+
+
+def test_default_registry_rejects_in_place_add() -> None:
+    # Registry.default() is frozen: built-ins are not overridable in place (a different impl is a
+    # different (name, version)). add() on a frozen registry must raise.
+    with pytest.raises(FrozenRegistryError, match="frozen"):
+        Registry.default().add(_feature("brand_new_1"))
+
+
+def test_default_registry_rejects_replacing_a_builtin() -> None:
+    # Re-adding an existing built-in name is rejected the same way -- no in-place replacement.
+    with pytest.raises(FrozenRegistryError, match="frozen"):
+        Registry.default().add(_feature("rsi_14"))
+
+
+def test_default_registry_instances_are_independent() -> None:
+    # Two calls yield distinct objects that do not share mutable state: mutating an unfrozen copy of
+    # one must not leak into the other.
+    first = Registry.default()
+    second = Registry.default()
+    assert first is not second
+    assert first._by_key is not second._by_key  # noqa: SLF001 -- asserting no shared mutable state
+    unfrozen = Registry(first.features())  # an unfrozen copy
+    unfrozen.add(_feature("brand_new_1"))
+    assert "brand_new_1" not in second

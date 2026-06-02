@@ -24,11 +24,15 @@ def test_season_dow_is_int8() -> None:
     assert out.dtype == pl.Int8
 
 
-def test_season_tom_flags_month_boundaries_only() -> None:
-    # January has 31 days; with k=3 the flag is True for days <= 3 or > 28.
-    dates = [datetime(2024, 1, d, tzinfo=UTC) for d in (1, 3, 15, 26, 31)]
+def test_season_tom_flags_last_session_and_first_k() -> None:
+    # Canonical turn-of-month window (FEATURES.md 12): "last session of month + first k sessions".
+    # January has 31 days; with k=3 the flag is True for day <= 3 OR day == 31 (the last day) only.
+    # Day 1: 1<=3 -> True. Day 3: 3<=3 -> True. Day 4: 4>3 and 4!=31 -> False. Day 15: False.
+    # Day 30: 30!=31 -> False (this is the discriminating case: the old symmetric last-k window
+    # flagged 29/30 True; the canonical last-session-only window does not). Day 31: 31==31 -> True.
+    dates = [datetime(2024, 1, d, tzinfo=UTC) for d in (1, 3, 4, 15, 30, 31)]
     out = _frame(dates).select(season_tom(k=3).expr(SCHEMA)).to_series()
-    assert out.to_list() == [True, True, False, False, True]
+    assert out.to_list() == [True, True, False, False, False, True]
 
 
 def test_season_tom_is_boolean() -> None:

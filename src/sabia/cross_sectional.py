@@ -24,6 +24,14 @@ from sabia.typing import CLOSE_TR, MARKET_RET, FactorRole, PriceRole
 
 _JT = Reference("Jegadeesh & Titman", 1993)
 
+# xs_z_mom winsorizes the per-symbol signal before standardizing (FEATURES.md 4.6: "xs_zscore
+# optionally winsorizes before standardizing"; 12 marks xs_z_mom "(winsorized)"). We clip each
+# timestamp slice symmetrically to mean +/- k*std (std measured within the same slice). k=3 follows
+# the conventional 3-sigma rule -- it trims extreme cross-sectional outliers (a single blown-up name
+# distorting the whole slice's mean/std) while leaving the bulk of the distribution untouched. The
+# bound k folds into params and therefore the fingerprint, so retuning it bumps the hash.
+_XS_WINSOR_K = 3.0
+
 
 def _xs_rank_reduce(s: BarSchema) -> pl.Expr:
     # Ascending percentile rank in (0, 1] within each timestamp slice; ties take the average rank.
@@ -34,12 +42,26 @@ def _xs_rank_reduce(s: BarSchema) -> pl.Expr:
     return sig.rank(method="average").over(s.timestamp_col) / sig.count().over(s.timestamp_col)
 
 
-def _xs_zscore_reduce(s: BarSchema) -> pl.Expr:
-    # Cross-sectional standardization within each timestamp slice; zero dispersion -> null.
-    sig = pl.col(XS_SIGNAL_COLUMN)
-    mean = sig.mean().over(s.timestamp_col)
-    std = sig.std().over(s.timestamp_col)
-    return pl.when(std == 0).then(None).otherwise((sig - mean) / std)
+def _winsorize_slice(sig: pl.Expr, over: str, *, k: float) -> pl.Expr:
+    # Clip ``sig`` to mean +/- k*std computed within each ``over`` slice (FEATURES.md 4.6). Nulls
+    # are excluded from the slice mean/std (Polars skips them) and pass through clip unchanged.
+    mean = sig.mean().over(over)
+    std = sig.std().over(over)
+    return sig.clip(mean - k * std, mean + k * std)
+
+
+def _xs_zscore_reduce(k: float) -> Callable[[BarSchema], pl.Expr]:
+    # Cross-sectional standardization within each timestamp slice, winsorized to +/-k*std first
+    # (FEATURES.md 4.6); zero dispersion -> null. Winsorizing before computing the standardizing
+    # mean/std caps the influence of outliers on both moments.
+    def reduce(s: BarSchema) -> pl.Expr:
+        sig = pl.col(XS_SIGNAL_COLUMN)
+        clipped = _winsorize_slice(sig, s.timestamp_col, k=k)
+        mean = clipped.mean().over(s.timestamp_col)
+        std = clipped.std().over(s.timestamp_col)
+        return pl.when(std == 0).then(None).otherwise((clipped - mean) / std)
+
+    return reduce
 
 
 def xs_rank_mom(
@@ -48,7 +70,8 @@ def xs_rank_mom(
     """Cross-sectional percentile rank of ``mom_{formation}_{skip}``. FINITE, RANK_0_1.
 
     The canonical Jegadeesh-Titman momentum factor: rank each name's 12-1 momentum across the
-    universe at each date. Citation: Jegadeesh & Titman (1993).
+    universe at each date. The percentile spans ``(0, 1]`` -- minimum ``1/n``, maximum ``1.0``
+    (never exactly ``0``). Citation: Jegadeesh & Titman (1993).
     """
     positive_int("formation", formation)
     non_negative_int("skip", skip)
@@ -57,7 +80,7 @@ def xs_rank_mom(
 
     def signal(s: BarSchema) -> pl.Expr:
         c = pl.col(s.column(close))
-        return grouped(safe_div(c.shift(skip), c.shift(formation)).log(), s.symbol_col)
+        return grouped(log_return(c.shift(skip), c.shift(formation)), s.symbol_col)
 
     return _xs_feature(
         _xs_rank_reduce,
@@ -82,30 +105,31 @@ def xs_z_mom(*, formation: int = 252, skip: int = 21, close: PriceRole = CLOSE_T
 
     def signal(s: BarSchema) -> pl.Expr:
         c = pl.col(s.column(close))
-        return grouped(safe_div(c.shift(skip), c.shift(formation)).log(), s.symbol_col)
+        return grouped(log_return(c.shift(skip), c.shift(formation)), s.symbol_col)
 
     return _xs_feature(
-        _xs_zscore_reduce,
+        _xs_zscore_reduce(_XS_WINSOR_K),
         signal,
         name,
         formation,
         close,
         Unit.ZSCORE,
-        FrozenParams(formation=formation, skip=skip),
+        FrozenParams(formation=formation, skip=skip, winsor_k=_XS_WINSOR_K),
     )
 
 
 def rev_1m(*, window: int = 21, close: PriceRole = CLOSE_TR) -> BoundFeature:
     """Short-term reversal: cross-sectional rank of the negated ``window``-bar return. RANK_0_1.
 
-    Recent losers rank high (they tend to rebound). Citation: Jegadeesh (1990).
+    Recent losers rank high (they tend to rebound). The percentile spans ``(0, 1]`` -- minimum
+    ``1/n``, maximum ``1.0`` (never exactly ``0``). Citation: Jegadeesh (1990).
     """
     positive_int("window", window)
     name = naming("rev_1m", window)
 
     def signal(s: BarSchema) -> pl.Expr:
         c = pl.col(s.column(close))
-        return grouped(-safe_div(c, c.shift(window)).log(), s.symbol_col)
+        return grouped(-log_return(c, c.shift(window)), s.symbol_col)
 
     return _xs_feature(
         _xs_rank_reduce,
@@ -142,6 +166,10 @@ def _xs_feature(  # noqa: PLR0913 -- a cross-sectional spec genuinely carries th
         cost_class=Cost.LINEAR,
         input_roles=(close,),
         output_unit=unit,
+        # Percentile rank = rank(avg)/count -> spans (0, 1]: the minimum is 1/n (never 0, since the
+        # smallest valid name still gets rank 1) and the maximum is exactly 1.0. The range tuple
+        # carries (lower, upper) magnitudes; the lower bound is exclusive (n-dependent, approaching
+        # 0) and the upper is inclusive. See the (0, 1] note in each rank feature's docstring.
         output_range=(0.0, 1.0) if unit is Unit.RANK_0_1 else None,
         evidence=Evidence.ACADEMIC_REPLICATED,
         citation=Citation(formula=formula),

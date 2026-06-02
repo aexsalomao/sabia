@@ -101,6 +101,28 @@ def test_causality_future_does_not_change_past(
 
 
 @pytest.mark.parametrize("feature", _TS, ids=_TS_IDS)
+def test_causality_one_future_bar_does_not_change_past(
+    feature: BoundFeature, series: pl.DataFrame
+) -> None:
+    # Deterministic companion to the hypothesis causality test: pin future_bars=1, the tightest
+    # boundary (a single new bar at t+1 must leave every value at <= t exactly unchanged).
+    full = _evaluate(feature, series)
+    extended = _evaluate(feature, append_future(series, 1)).head(series.height)
+    assert_series_close(extended, full, rtol=0.0, atol=DEFAULT_FLOAT_TOLERANCE)
+
+
+@pytest.mark.parametrize("feature", _TS_VALUED, ids=_TS_VALUED_IDS)
+def test_all_null_input_yields_all_null_output(feature: BoundFeature, series: pl.DataFrame) -> None:
+    # Null every value column the feature reads. Output must be entirely null -- never an imputed
+    # value and never inf/NaN (FEATURES.md 4.5: degenerate input -> null, never inf/NaN).
+    nulled = series.with_columns(
+        pl.lit(None, dtype=series.schema[col]).alias(col) for col in _value_inputs(feature)
+    )
+    out = _evaluate(feature, nulled)
+    assert out.null_count() == out.len(), "all-null input produced a non-null value"
+
+
+@pytest.mark.parametrize("feature", _TS, ids=_TS_IDS)
 def test_windowed_recompute_parity(feature: BoundFeature, series: pl.DataFrame) -> None:
     spec = feature.spec
     full_last = _evaluate(feature, series).tail(1)

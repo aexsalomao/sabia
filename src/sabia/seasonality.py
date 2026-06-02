@@ -1,8 +1,16 @@
 # Seasonality family: deterministic calendar position of the bar timestamp. Resolved through the
 # SessionCalendar seam (FEATURES.md 4.6, calendar.py) so no 252 or weekday convention is hardcoded
 # in feature code; v1's UtcCalendar is a calendar-day approximation, an exchange calendar arrives
-# later as a quando adapter. All causal: a bar's calendar position is known at t. Timestamp is a
-# fixed canonical column (FEATURES.md 2.1), so these features declare no input roles.
+# later as a quando adapter. All causal: a bar's calendar position is known at t.
+#
+# v1 seasonality is calendar-derived from the canonical `timestamp` column (FEATURES.md 2.1): the
+# session position is computed from `timestamp + calendar` via get_calendar, NOT read from a
+# physical session column. So these features declare NO input_roles -- there is no physical
+# `session` column in v1. The calendar identity is pinned at the manifest/schema level (FEATURES.md
+# 2.4/4.4), which is where the calendar dependency folds into reproducibility. A physical
+# `CalendarRole.SESSION` input (an ingested session_id column) is deferred to a future version;
+# declaring it here would make compute()/validate() try to resolve a non-existent `session` column
+# and raise.
 
 from __future__ import annotations
 
@@ -45,11 +53,13 @@ def season_dow() -> BoundFeature:
 
 
 def season_tom(*, k: int = 3) -> BoundFeature:
-    """Turn-of-month flag: True within ``k`` sessions of a month boundary. FINITE, UNITLESS.
+    """Turn-of-month flag: True on the month's last session or the first ``k``. FINITE, UNITLESS.
 
-    Causal proxy for the turn-of-month effect: the first ``k`` and last ``k`` calendar days of the
-    month (the last-session test uses ``days_in_month``, knowable at t, not a look-ahead). Citation:
-    Ariel (1987).
+    Canonical turn-of-month window (FEATURES.md 12 ``season_tom_k``): "last session of month + first
+    k sessions". Causal -- the last-session test uses ``days_in_month``, knowable at t, not a
+    look-ahead. v1's UtcCalendar is a calendar-day approximation, so "session" here is the calendar
+    day-of-month: the flag is True when ``day <= k`` (the first k days) OR ``day == days_in_month``
+    (the single last day of the month). Citation: Ariel (1987).
     """
     positive_int("k", k)
     name = naming("season_tom", k)
@@ -58,7 +68,7 @@ def season_tom(*, k: int = 3) -> BoundFeature:
         cal = get_calendar(s.calendar)
         ts = pl.col(s.timestamp_col)
         day = cal.day_of_month(ts)
-        value = (day <= k) | (day > cal.days_in_month(ts) - k)
+        value = (day <= k) | (day == cal.days_in_month(ts))
         return value.cast(_BOOL).alias(name)
 
     return _calendar_feature(

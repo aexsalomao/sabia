@@ -212,7 +212,8 @@ propagates; no imputation. Degenerate inputs → `null`, never `inf`/`NaN`.
 
 Returns are log returns (`LOG_RETURN`) unless named otherwise. Volatility outputs are **per-bar**
 unless suffixed `_ann`; annualization uses the calendar/session factor (`SessionCalendar.bars_per_year`),
-never a hardcoded 252 in feature code. Cross-sectional `xs_rank`: percentile `[0,1]`, ascending (so high
+never a hardcoded 252 in feature code. Cross-sectional `xs_rank`: percentile `(0,1]` (min `1/n`, max `1.0`,
+from the rank/count implementation), ascending (so high
 momentum ranks high), average ties, nulls stay null, declared `min_count`; `xs_zscore` optionally
 winsorizes before standardizing.
 
@@ -385,7 +386,7 @@ precisely specified. Roles use `field@adjustment` (`tr`=total-return, `split`=sp
 | `dist_52w_high` | `close/max(close,252)−1` | 252 | close@tr | 252 | FINITE/RATIO | ACADEMIC_REPLICATED | 1.0 |
 | `price_pctile_252` | percentile of close in window | 252 | close@tr | 252 | FINITE/RANK_0_1 | FORMULA_ONLY | 1.0 |
 | `ols_slope_63` | OLS slope `ln close ~ t` (HEAVY) | 63 | close@tr | 63 | FINITE/LOG_RETURN | FORMULA_ONLY | 1.1 |
-| `macd_12_26_9` (+signal/hist) | EMA spread | 12,26,9 | close@tr | 224 | DECAY/LOG_RETURN | TA_CANON | 1.1 |
+| `macd_12_26_9` (+signal/hist) | EMA spread (per-output warmup: line needs only the slow EMA to converge; signal/hist need slow + signal) | 12,26,9 | close@tr | 180 / 242 / 242 (line/signal/hist) | DECAY/LOG_RETURN | TA_CANON | 1.1 |
 
 ### momentum
 | Feature | Definition | Params | Roles | min_hist | Rec/Unit | Evidence | Tier |
@@ -434,7 +435,7 @@ precisely specified. Roles use `field@adjustment` (`tr`=total-return, `split`=sp
 |---|---|---|---|---|---|---|---|
 | `zscore_close_21` | distance from rolling mean | 21 | close@tr | 21 | ZSCORE | FORMULA_ONLY | 1.0 |
 | `autocorr_1_21` | lag-1 return autocorrelation | 1,21 | close@tr | 23 | UNITLESS | FORMULA_ONLY | 1.0 |
-| `var_ratio_2_21` | Lo–MacKinlay variance ratio (HEAVY) | 2,21 | close@tr | 22 | UNITLESS | ACADEMIC_REPLICATED | 1.1 |
+| `var_ratio_2_21` | Lo–MacKinlay variance ratio (HEAVY) | 2,21 | close@tr | 23 | UNITLESS | ACADEMIC_REPLICATED | 1.1 |
 
 *(`hurst_*`, `ou_halflife_*` excluded — estimator-ambiguous; OU only on spreads/demeaned series, with a pinned estimator.)*
 

@@ -6,9 +6,11 @@ import polars as pl
 import pytest
 from synthetic import CLOSE, HIGH, LOW, SCHEMA, SYMBOL, TIMESTAMP
 
-from sabia.momentum import roc, rsi, stoch_k, williams_r
+from sabia.momentum import cci, roc, rsi, stoch_k, williams_r
+from sabia.spec import DEFAULT_FLOAT_TOLERANCE
 
 PERIOD = 14
+TOL = DEFAULT_FLOAT_TOLERANCE
 
 
 def _frame(closes: list[float]) -> pl.DataFrame:
@@ -99,3 +101,37 @@ def test_stoch_k_flat_range_is_null() -> None:
     df = _ohlc([100.0] * n, [100.0] * n, [100.0] * n)
     out = df.select(stoch_k(window=14).expr(SCHEMA)).to_series()
     assert out[13] is None
+
+
+# Canonical Lambert CCI = (TP - SMA(TP)) / (0.015 * MAD), MAD = (1/n)*sum|TP_i - SMA(TP)| with
+# SMA(TP) the single current-window mean held constant across all n terms. Below, h = l = c so
+# TP = c, and the reference values are hand-computed (see the test docstrings).
+@pytest.mark.parametrize(
+    ("typical_prices", "expected"),
+    [
+        # Ramp TP = 1..20: SMA = 10.5; TP_last - SMA = 9.5; sum|i - 10.5| = 100 -> MAD = 5;
+        # CCI = 9.5 / (0.015 * 5) = 9.5 / 0.075 = 126.6666...
+        ([float(i) for i in range(1, 21)], 126.66666666666667),
+        # Flat-then-jump TP = [10]*19 + [20]: SMA = 210/20 = 10.5; TP_last - SMA = 9.5;
+        # MAD = (19*0.5 + 9.5)/20 = 19/20 = 0.95; CCI = 9.5 / (0.015 * 0.95) = 666.6666...
+        ([10.0] * 19 + [20.0], 666.6666666666667),
+    ],
+    ids=["ramp", "jump"],
+)
+def test_cci_matches_canonical_single_window_mad(
+    typical_prices: list[float], expected: float
+) -> None:
+    df = _ohlc(typical_prices, typical_prices, typical_prices)
+    out = df.select(cci(window=20).expr(SCHEMA)).to_series()
+    assert out[19] == pytest.approx(expected, abs=TOL)
+
+
+def test_cci_flat_series_is_null() -> None:
+    n = 20
+    df = _ohlc([100.0] * n, [100.0] * n, [100.0] * n)
+    out = df.select(cci(window=20).expr(SCHEMA)).to_series()
+    assert out[19] is None
+
+
+def test_cci_min_history_is_window() -> None:
+    assert cci(window=20).spec.min_history == 20

@@ -12,7 +12,7 @@ import polars as pl
 import pytest
 from synthetic import CLOSE, MARKET, SCHEMA, SYMBOL, TIMESTAMP
 
-from sabia.cross_sectional import _xs_rank_reduce, beta, idio_vol
+from sabia.cross_sectional import _xs_rank_reduce, _xs_zscore_reduce, beta, idio_vol
 from sabia.registry import XS_SIGNAL_COLUMN, Registry, evaluate
 
 
@@ -89,6 +89,41 @@ def test_rev_1m_ranks_recent_losers_high() -> None:
     # Reversal = -return ranked ascending: loser C ranks above winner A.
     assert ranked[2] > ranked[0]
     assert ranked.min() > 0.0 and ranked.max() <= 1.0
+
+
+def test_xs_zscore_reduce_winsorizes_before_standardizing() -> None:
+    # FEATURES.md 4.6 / 12 ("xs_z_mom ... winsorized"): _xs_zscore_reduce clips the per-symbol
+    # signal within each timestamp slice to mean +/- k*std before standardizing. signal [1,2,3,100]
+    # and k=1: mean 26.5, std(ddof=1) 49.00680224893955, bounds [-22.50680, 75.50680]; 100 clips to
+    # 75.50680224893955. Clipped [1, 2, 3, 75.50680...] has mean 20.376700562234888, std
+    # 36.76246946116165, giving z = (clipped - mean) / std hand-computed below.
+    ts = datetime(2024, 1, 1, tzinfo=UTC)
+    frame = pl.DataFrame(
+        {
+            TIMESTAMP: [ts] * 4,
+            SYMBOL: list("ABCD"),
+            XS_SIGNAL_COLUMN: [1.0, 2.0, 3.0, 100.0],
+        }
+    )
+    out = frame.select(_xs_zscore_reduce(1.0)(SCHEMA).alias("z")).get_column("z")
+    assert out.to_list() == pytest.approx(
+        [-0.5270783178128373, -0.499876663118327, -0.4726750084238167, 1.4996299893549812],
+        abs=1e-9,
+    )
+
+
+def test_xs_zscore_reduce_null_dispersion_yields_null() -> None:
+    # A flat slice (zero dispersion) -> null, never inf, even with winsorization on.
+    ts = datetime(2024, 1, 1, tzinfo=UTC)
+    frame = pl.DataFrame(
+        {
+            TIMESTAMP: [ts] * 3,
+            SYMBOL: list("ABC"),
+            XS_SIGNAL_COLUMN: [5.0, 5.0, 5.0],
+        }
+    )
+    out = frame.select(_xs_zscore_reduce(3.0)(SCHEMA).alias("z")).get_column("z")
+    assert out.null_count() == 3
 
 
 def test_xs_rank_excludes_nulls_from_rank_and_denominator() -> None:

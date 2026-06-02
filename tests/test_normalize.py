@@ -68,6 +68,51 @@ def test_xs_zscore_is_centered_within_each_timestamp() -> None:
     assert out.mean() == pytest.approx(0.0, abs=TOL)
 
 
+def test_xs_zscore_winsorize_clips_outlier_before_standardizing() -> None:
+    # FEATURES.md 4.6: xs_zscore(winsorize=k) clips each slice to mean +/- k*std, then standardizes.
+    # Slice x = [1, 2, 3, 100]: mean = 26.5, sample std (ddof=1) = 49.00680224893955.
+    #   k=1 bounds = [26.5 - 49.0068, 26.5 + 49.0068] = [-22.50680, 75.50680].
+    #   1, 2, 3 are inside the band; 100 clips down to 75.50680224893955.
+    # Clipped = [1, 2, 3, 75.50680224893955]: clipped mean = 20.376700562234888,
+    #   clipped std (ddof=1) = 36.76246946116165.
+    # z = (clipped - clipped_mean) / clipped_std:
+    #   1  -> -0.5270783178128373
+    #   2  -> -0.499876663118327
+    #   3  -> -0.4726750084238167
+    #   75.50680... -> 1.4996299893549812
+    df = pl.DataFrame(
+        {
+            "timestamp": _ts(1) * 4,
+            "symbol": ["A", "B", "C", "D"],
+            "x": [1.0, 2.0, 3.0, 100.0],
+        }
+    )
+    out = df.select(xs_zscore(winsorize=1.0).apply(pl.col("x"))).to_series()
+    assert out.to_list() == pytest.approx(
+        [-0.5270783178128373, -0.499876663118327, -0.4726750084238167, 1.4996299893549812],
+        abs=TOL,
+    )
+    # The winsorized slice still standardizes to mean 0.
+    assert out.mean() == pytest.approx(0.0, abs=TOL)
+
+
+def test_xs_zscore_winsorize_none_matches_plain_zscore() -> None:
+    # Default winsorize=None must preserve the prior (unclipped) behavior exactly.
+    df = pl.DataFrame(
+        {
+            "timestamp": _ts(1) * 4,
+            "symbol": ["A", "B", "C", "D"],
+            "x": [1.0, 2.0, 3.0, 100.0],
+        }
+    )
+    plain = df.select(xs_zscore().apply(pl.col("x"))).to_series().to_list()
+    # mean 26.5, std 49.00680224893955 -> z = (x - 26.5) / 49.00680224893955.
+    assert plain == pytest.approx(
+        [-0.520335929499497, -0.49993059893088926, -0.47952526836228154, 1.4997917967926677],
+        abs=TOL,
+    )
+
+
 def test_xs_rank_is_monotone_in_value() -> None:
     df = pl.DataFrame(
         {

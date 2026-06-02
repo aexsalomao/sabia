@@ -9,7 +9,7 @@ from math import log
 
 import polars as pl
 
-from sabia._expr import grouped
+from sabia._expr import emit_after, grouped
 from sabia._math import log_return, safe_div, safe_sqrt
 from sabia._validate_params import int_at_least, positive_int
 from sabia.naming import naming
@@ -99,24 +99,49 @@ def autocorr(*, lag: int = 1, window: int = 21, close: PriceRole = CLOSE_TR) -> 
 
 
 def var_ratio(*, q: int = 2, window: int = 21, close: PriceRole = CLOSE_TR) -> BoundFeature:
-    """Lo-MacKinlay (1988) variance ratio ``VR(q)`` over ``window`` bars. FINITE, UNITLESS (HEAVY).
+    """Lo-MacKinlay (1988) bias-corrected variance ratio ``VR(q)`` over ``window`` bars. HEAVY.
 
-    ``Var(q-bar returns) / (q * Var(1-bar returns))`` from overlapping log returns: 1 under a random
-    walk, <1 under mean reversion, >1 under momentum. Zero one-bar variance yields null. Citation:
-    Lo & MacKinlay (1988).
+    The plain ratio ``Var(rq) / (q * Var(r1))`` is biased -- worst exactly at a small window and
+    small ``q``. This is the Lo & MacKinlay (1988) unbiased estimator with the overlapping-sample
+    bias correction: the 1-bar variance uses the unbiased divisor ``T-1`` and the q-period variance
+    uses the overlap-corrected divisor ``m = q * (T-q+1) * (1 - q/T)`` (``T`` = number of one-bar
+    returns in the window). VR is 1 under a random walk, <1 under mean reversion, >1 under momentum.
+    Zero one-bar variance (a flat window) yields null. FINITE, UNITLESS. Citation: Lo & MacKinlay
+    (1988).
     """
     int_at_least("q", q, 2)  # VR(q) aggregates q-bar returns; q >= 2 by construction
     int_at_least("window", window, 2)
     name = naming("var_ratio", q, window)
+    t = float(window)  # T = number of one-bar returns in the rolling window
+    nq = window - q + 1  # number of overlapping q-period returns fully inside the same window
+    m = q * (t - q + 1) * (1.0 - q / t)  # Lo-MacKinlay overlap-bias correction factor
 
     def build(s: BarSchema) -> pl.Expr:
         c = pl.col(s.column(close))
         r1 = log_return(c, c.shift(1))
         rq = log_return(c, c.shift(q))
-        var1 = r1.rolling_var(window, min_samples=window)
-        varq = rq.rolling_var(window, min_samples=window)
-        value = safe_div(varq, q * var1)
-        return grouped(value, s.symbol_col).alias(name)
+        # Closed-form rolling moments. Each window carries its OWN mean via rolling sums (a separate
+        # rolling_mean per row would bleed the leading null of r1 into adjacent windows). var_a uses
+        # all T one-bar returns; var_c uses the T-q+1 overlapping q-period returns ending at the
+        # same bar (Lo-MacKinlay's unbiased sigma_a^2 / sigma_c^2).
+        s1 = r1.rolling_sum(window, min_samples=window)
+        s1_sq = (r1 * r1).rolling_sum(window, min_samples=window)
+        sq = rq.rolling_sum(nq, min_samples=nq)
+        sq_sq = (rq * rq).rolling_sum(nq, min_samples=nq)
+        mean1 = s1 / t  # window mean of the one-bar returns
+        # Unbiased 1-bar variance: sum((r1 - mean1)^2) / (T - 1).
+        var_a = (s1_sq - s1 * mean1) / (t - 1.0)
+        # Overlap-corrected q-period variance: sum((rq - q*mean1)^2) / m, where the q-bar return has
+        # mean q*mean1 (it is the sum of q consecutive one-bar returns). Expand the square over the
+        # T-q+1 overlapping returns: sum(rq^2) - 2*q*mean1*sum(rq) + (T-q+1)*(q*mean1)^2. m already
+        # carries the q normalization, so VR = var_c / var_a (not var_c / (q*var_a)).
+        qm = q * mean1
+        var_c = (sq_sq - 2.0 * qm * sq + nq * qm * qm) / m
+        value = safe_div(var_c, var_a)
+        # var_c's T-q+1-wide window fills q-1 bars sooner than the full T-bar one-bar window, so
+        # gate to the spec's emit-and-buffer threshold (min_history = window + q): null until then.
+        gated = emit_after(value, window + q, s.symbol_col)
+        return grouped(gated, s.symbol_col).alias(name)
 
     return bind_feature(
         build,

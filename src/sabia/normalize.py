@@ -29,7 +29,11 @@ from sabia.typing import FeatureRef
 _TIMESTAMP_COL = "timestamp"
 
 # Fractional-differentiation weights below this magnitude are dropped (fixed-width window, FFD).
-_FFD_WEIGHT_THRESHOLD = 1e-5
+# 1e-6 (tighter than the looser 1e-5) keeps more of the slow-decaying tail for small ``d``, where
+# the binomial weights shrink very gradually -- preserving the long memory FFD exists to retain --
+# while ``_FFD_MAX_LAG`` still bounds the window. Truncating too early would discard real
+# low-frequency content; this is the dropped-weight contribution to the FFD approximation error.
+_FFD_WEIGHT_THRESHOLD = 1e-6
 _FFD_MAX_LAG = 100
 
 _DEFAULT_DTYPE: pl.DataType = pl.Float64()
@@ -89,13 +93,23 @@ def zscore(window: int, *, over: str | None = None) -> BoundTransform:
     )
 
 
-def xs_zscore(*, over: str = _TIMESTAMP_COL) -> BoundTransform:
+def xs_zscore(*, winsorize: float | None = None, over: str = _TIMESTAMP_COL) -> BoundTransform:
     """Cross-sectional z-score within each ``over`` slice (a single timestamp by default).
 
-    A degenerate slice (zero dispersion) yields ``null``, never ``inf``.
+    A degenerate slice (zero dispersion) yields ``null``, never ``inf``. Pass ``winsorize=k`` to
+    clip each slice symmetrically to mean +/- ``k``*std (std measured within the slice) BEFORE
+    standardizing, capping the influence of outliers on the standardizing moments (FEATURES.md 4.6:
+    "xs_zscore optionally winsorizes before standardizing"). ``winsorize`` folds into the spec
+    params and fingerprint; the default ``None`` (no clipping) preserves the prior behavior.
     """
+    if winsorize is not None:
+        positive("winsorize", winsorize)
 
     def apply(expr: pl.Expr) -> pl.Expr:
+        if winsorize is not None:
+            slice_mean = expr.mean().over(over)
+            slice_std = expr.std().over(over)
+            expr = expr.clip(slice_mean - winsorize * slice_std, slice_mean + winsorize * slice_std)
         mean = expr.mean().over(over)
         std = expr.std().over(over)
         standardized = (expr - mean) / std
@@ -104,7 +118,7 @@ def xs_zscore(*, over: str = _TIMESTAMP_COL) -> BoundTransform:
     return _bound(
         "xs_zscore",
         apply,
-        params=FrozenParams(),
+        params=FrozenParams(winsorize=winsorize),
         lookback=None,
         min_history=1,
         output_unit=Unit.ZSCORE,
@@ -114,7 +128,9 @@ def xs_zscore(*, over: str = _TIMESTAMP_COL) -> BoundTransform:
 def xs_rank(*, over: str = _TIMESTAMP_COL) -> BoundTransform:
     """Cross-sectional percentile rank in (0, 1] within each ``over`` slice.
 
-    Ties take the average rank. Computed per timestamp slice, so it never pools across time.
+    ``rank(average)/count`` spans ``(0, 1]``: the minimum is ``1/n`` (never exactly ``0`` -- the
+    smallest valid name still ranks 1) and the maximum is exactly ``1.0``. Ties take the average
+    rank. Computed per timestamp slice, so it never pools across time.
     """
 
     def apply(expr: pl.Expr) -> pl.Expr:
@@ -142,6 +158,12 @@ def frac_diff(
     Applies the binomial FFD weights ``w_k`` (truncated where ``|w_k| < threshold``) to trailing
     lags of the input. ``d == 0`` returns the input unchanged; ``d == 1`` reduces to a first
     difference. Pass ``over`` to lag within each group (per symbol on a panel).
+
+    The weight count ``len(weights)`` (capped at ``max_lag``) IS this transform's effective warmup
+    / long-memory buffer: it is surfaced as both ``lookback`` and ``min_history`` on the
+    ``TransformSpec``, so the manifest carries the long-memory horizon without a separate
+    ``effective_warmup`` field (FEATURES.md 8.2). Smaller ``d`` (or a tighter ``threshold``) keeps
+    more weights and so a longer warmup.
     """
     positive("threshold", threshold)
     positive_int("max_lag", max_lag)

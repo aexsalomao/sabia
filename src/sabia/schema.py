@@ -55,10 +55,18 @@ class BarSchema:
         """Build a schema from plain OHLCV column names -- the common case, no hand-rolled roles.
 
         Maps the OHLC columns to the **split-only** basis (the range-safe basis the estimators use,
-        FEATURES.md 2.2) and ``volume`` to volume@split. ``open``/``close`` also back the ``@tr``
-        return roles so close-to-close features resolve; pass ``tr_close`` when the total-return
-        close is a separate column (e.g. an ``adj_close``). For richer inputs (VWAP, dollar volume,
-        a market factor) construct ``BarSchema(roles={...})`` directly -- this covers OHLCV only.
+        FEATURES.md 2.2) and ``volume`` to volume@split.
+
+        IMPORTANT -- the @tr conflation when ``tr_close`` is omitted: ``open@tr`` and ``close@tr``
+        are then backed by the **same split-only columns** as ``open@split`` / ``close@split``.
+        There is no separate total-return series, so returns / momentum / trend features (which
+        request the ``@tr`` roles) will silently run on split-only prices that are *labelled* total
+        return. On dividend-paying instruments this is wrong -- the dividend drop is treated as a
+        real return. Pass ``tr_close`` (e.g. an ``adj_close`` column) whenever a distinct
+        total-return close exists, so the ``@tr`` roles resolve to the adjusted series.
+
+        For richer inputs (VWAP, dollar volume, a market factor) construct
+        ``BarSchema(roles={...})`` directly -- this covers OHLCV only.
         """
         close_tr_col = tr_close if tr_close is not None else close
         roles: dict[InputRole, str] = {
