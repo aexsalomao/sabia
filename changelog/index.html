@@ -1,0 +1,1344 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Polars-native technical features for trading pipelines — pure, point-in-time, online-ready">
+      
+      
+      
+        <link rel="canonical" href="https://aexsalomao.github.io/sabia/changelog/">
+      
+      
+        <link rel="prev" href="../contributing/">
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+    
+    
+      
+        <title>Changelog - sabia</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.484c7ddc.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="teal" data-md-color-accent="green">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#changelog" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="sabia" class="md-header__button md-logo" aria-label="sabia" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            sabia
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Changelog
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="teal" data-md-color-accent="green"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="teal" data-md-color-accent="green"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/aexsalomao/sabia" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    aexsalomao/sabia
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href=".." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../concepts/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Concepts & guide
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../catalog/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Feature catalog
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../api/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  API Reference
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../contributing/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Contributing
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    <li class="md-tabs__item md-tabs__item--active">
+      <a href="./" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Changelog
+
+      </a>
+    </li>
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="sabia" class="md-nav__button md-logo" aria-label="sabia" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    sabia
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/aexsalomao/sabia" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    aexsalomao/sabia
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../concepts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Concepts & guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../catalog/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Feature catalog
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../contributing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contributing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Changelog
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Changelog
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#unreleased" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        [Unreleased]
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#040-2026-06-02" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        [0.4.0] - 2026-06-02
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="[0.4.0] - 2026-06-02">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#changed-breaking-corrected-feature-output-fingerprints" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Changed (breaking — corrected feature output &amp; fingerprints)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#added" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Added
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#fixed" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Fixed
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#030-2026-06-02" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        [0.3.0] - 2026-06-02
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="[0.3.0] - 2026-06-02">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#added_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Added
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#changed-breaking-feature-renames" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Changed (breaking — feature renames)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#020-2026-06-02" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        [0.2.0] - 2026-06-02
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="[0.2.0] - 2026-06-02">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#changed-v5-architecture-breaking-pre-10" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Changed — v5 architecture (breaking; pre-1.0)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#added-inventory-66-bound-features-the-full-12-set-plus-documented-extras" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Added — inventory (66 bound features, the full §12 set plus documented extras)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#fixed-code-review-hardening" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Fixed — code-review hardening
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#docs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Docs
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tests" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Tests
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#010-2026-06-01" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        [0.1.0] - 2026-06-01
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="[0.1.0] - 2026-06-01">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#added_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Added
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#unreleased" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        [Unreleased]
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#040-2026-06-02" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        [0.4.0] - 2026-06-02
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="[0.4.0] - 2026-06-02">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#changed-breaking-corrected-feature-output-fingerprints" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Changed (breaking — corrected feature output &amp; fingerprints)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#added" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Added
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#fixed" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Fixed
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#030-2026-06-02" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        [0.3.0] - 2026-06-02
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="[0.3.0] - 2026-06-02">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#added_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Added
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#changed-breaking-feature-renames" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Changed (breaking — feature renames)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#020-2026-06-02" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        [0.2.0] - 2026-06-02
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="[0.2.0] - 2026-06-02">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#changed-v5-architecture-breaking-pre-10" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Changed — v5 architecture (breaking; pre-1.0)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#added-inventory-66-bound-features-the-full-12-set-plus-documented-extras" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Added — inventory (66 bound features, the full §12 set plus documented extras)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#fixed-code-review-hardening" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Fixed — code-review hardening
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#docs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Docs
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tests" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Tests
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#010-2026-06-01" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        [0.1.0] - 2026-06-01
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="[0.1.0] - 2026-06-01">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#added_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Added
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+    <a href="https://github.com/aexsalomao/sabia/edit/master/docs/changelog.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M10 20H6V4h7v5h5v3.1l2-2V8l-6-6H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h4zm10.2-7c.1 0 .3.1.4.2l1.3 1.3c.2.2.2.6 0 .8l-1 1-2.1-2.1 1-1c.1-.1.2-.2.4-.2m0 3.9L14.1 23H12v-2.1l6.1-6.1z"/></svg>
+    </a>
+  
+  
+
+
+<h1 id="changelog">Changelog</h1>
+<p>All notable changes to <code>sabia</code> are documented here. The format follows
+<a href="https://keepachangelog.com/en/1.1.0/">Keep a Changelog</a>, and the project adheres to
+<a href="https://semver.org/spec/v2.0.0.html">Semantic Versioning</a>.</p>
+<h2 id="unreleased">[Unreleased]</h2>
+<h2 id="040-2026-06-02">[0.4.0] - 2026-06-02</h2>
+<p>Acting on an internal code review: correcting features whose formulas diverged from the FEATURES.md
+§12 contract or their cited literature, plus closing the §9 production-gate test coverage. The
+corrected formulas change output values and several feature fingerprints, so the pinned manifest is
+regenerated in the same change (breaking, pre-1.0).</p>
+<h3 id="changed-breaking-corrected-feature-output-fingerprints">Changed (breaking — corrected feature output &amp; fingerprints)</h3>
+<ul>
+<li><strong><code>cci_20</code></strong> now uses the canonical single-window mean-absolute-deviation (was a trailing-mean
+  variant); <code>min_history</code> 39 → 20 per §12.</li>
+<li><strong><code>amihud_21</code></strong> uses the absolute log return (was a simple return), matching §4.6 and the
+  library-wide <code>ret@tr</code> basis.</li>
+<li><strong><code>var_ratio_2_21</code></strong> is now the Lo–MacKinlay bias-corrected estimator (matches the citation);
+  <code>min_history</code> 22 → 23.</li>
+<li><strong><code>cmf_21</code></strong> treats a flat (doji) bar as a zero money-flow contribution instead of nulling the
+  whole window.</li>
+<li><strong><code>season_tom_k</code></strong> flags the last session of the month plus the first <code>k</code> sessions (was a
+  symmetric first-<code>k</code>/last-<code>k</code> window).</li>
+<li><strong><code>xs_z_mom_252_21</code></strong> winsorizes within each timestamp slice (±3σ) before standardizing (§4.6).</li>
+<li>Float feature params are canonicalized via <code>float.hex()</code> for platform-stable fingerprints (§3.5),
+  so <code>vol_ewma_0p94</code>, <code>bb_pctb_20_2</code>, <code>bb_bw_20_2</code> (and other float-param features) get new
+  fingerprints. The pinned manifest is regenerated to match.</li>
+<li><code>evaluate</code> is no longer re-exported at the top level (<code>sabia.evaluate</code>); it remains available as
+  <code>sabia.registry.evaluate</code>.</li>
+</ul>
+<h3 id="added">Added</h3>
+<ul>
+<li><strong><code>winsorize=</code></strong> parameter on the <code>normalize.xs_zscore</code> transform (default <code>None</code>, no behavior
+  change for existing callers).</li>
+<li>§9 production-gate tests: eager-vs-lazy parity, chunked-vs-rechunked parity (both registry-
+  parametrized, covering the HEAVY/<code>rolling_map</code> kernels), <code>ValidationMode</code> RESEARCH/OFF semantics,
+  <code>validate()</code> OHLC-ordering rejection, symbol-isolation perturb-twin, input-order invariance,
+  registry immutability, all-null inputs, float-param fingerprint stability, and a deterministic
+  <code>future_bars=1</code> causality boundary.</li>
+</ul>
+<h3 id="fixed">Fixed</h3>
+<ul>
+<li>Cross-sectional momentum signals route through <code>safe_log</code> (no-NaN consistency, §4.5).</li>
+<li><code>frac_diff</code> uses a tighter weight-truncation threshold for slow-decaying long memory.</li>
+<li><code>BarSchema.ohlcv()</code> documents that, without <code>tr_close</code>, <code>close@tr</code>/<code>open@tr</code> are backed by the
+  split-only columns (a silent basis conflation on dividend-paying instruments).</li>
+<li><code>FEATURES.md</code> §12 reconciled with the code (macd per-output warmups 180/242/242, <code>var_ratio</code>
+  <code>min_history</code> 23, <code>xs_rank</code> percentile range <code>(0,1]</code>).</li>
+</ul>
+<h2 id="030-2026-06-02">[0.3.0] - 2026-06-02</h2>
+<p>Acting on an external audit: closing gaps where the code did not honor its own contracts, plus
+ergonomics. Breaking renames are pre-1.0 churn (the manifest lock is regenerated in the same change).</p>
+<h3 id="added_1">Added</h3>
+<ul>
+<li><strong>Manifest serialization.</strong> <code>FeatureSetManifest.to_dict</code> / <code>from_dict</code> / <code>to_json</code> / <code>from_json</code>
+  (tagged with <code>MANIFEST_SCHEMA_VERSION</code>) — the manifest now actually round-trips, as its docstring
+  always claimed.</li>
+<li><strong>As-of universe membership.</strong> <code>validate(..., membership=df)</code> / <code>compute(..., membership=df)</code> accept
+  a <code>(symbol, start, end)</code> frame; completeness is then checked point-in-time
+  (<code>{symbol : start &lt;= t &lt; end}</code>) instead of against a single static symbol count. Replaces the
+  previously accepted-but-ignored <code>membership_asof</code>.</li>
+<li><strong><code>compute(..., include_keys=True)</code></strong> prepends <code>symbol</code>/<code>timestamp</code>, aligned row-for-row.</li>
+<li><strong><code>BarSchema.ohlcv(...)</code></strong> convenience constructor for the common plain-OHLCV case.</li>
+<li><strong>Parameter guards.</strong> Factories now reject out-of-domain params at bind time (<code>period</code>/<code>window</code>/
+  <code>span</code> ranges, <code>0 &lt; lam &lt; 1</code>, <code>skip &lt; formation</code>, <code>fast &lt; slow</code>, …) via <code>sabia._validate_params</code>.</li>
+<li><strong>Ergonomic toolkit</strong> (<code>sabia.toolkit</code>, re-exported at top level): <code>FeatureSet</code>, <code>describe</code>,
+  <code>required_roles</code> / <code>required_columns</code>, <code>max_min_history</code> / <code>drop_warmup</code>, and <code>audit_frame</code>
+  (a non-raising <code>FrameAudit</code> report). New <code>sabia.recipes</code> (<code>daily_core</code>, <code>volatility_core</code>,
+  <code>cross_sectional_core</code>) returning <code>FeatureSet</code> bundles — features, never strategies.</li>
+<li><strong>Docs.</strong> Runnable README quickstart with real output; a generated <code>docs/catalog.md</code>; a
+  Reproducibility note explaining the Polars pin / 3.13 floor and the best-effort fingerprint.</li>
+</ul>
+<h3 id="changed-breaking-feature-renames">Changed (breaking — feature renames)</h3>
+<ul>
+<li><code>xs_rank_mom_252</code> → <code>xs_rank_mom_252_21</code>, <code>xs_z_mom_252</code> → <code>xs_z_mom_252_21</code> (the <code>skip</code> param is
+  now encoded in the name).</li>
+<li><code>vol_ewma_94</code> → <code>vol_ewma_0p94</code> (a stable lambda token that never rounds two lambdas together).</li>
+<li><code>ret_simple</code> → <code>ret_simple_1</code> (<code>ret_simple</code> gains a <code>period</code>, encoded like <code>ret_log</code>).</li>
+<li><code>ret_overnight</code> / <code>ret_intraday</code> now encode a non-<code>@tr</code> adjustment basis in the name (defaults
+  unchanged). <code>compute_lazy</code> documents that it does not validate.</li>
+</ul>
+<h2 id="020-2026-06-02">[0.2.0] - 2026-06-02</h2>
+<h3 id="changed-v5-architecture-breaking-pre-10">Changed — v5 architecture (breaking; pre-1.0)</h3>
+<p>The library moves from the v2.1 contract (factories return <code>pl.Expr</code>, take string column names) to
+the <strong>v5</strong> contract (<code>FeaturesSpec.md</code>). This is a ground-up redesign; nothing was published, so the
+break is acceptable pre-1.0.</p>
+<ul>
+<li><strong>Roles, not columns.</strong> Feature inputs are now <code>field@adjustment</code> roles (<code>close@tr</code>, <code>high@split</code>)
+  resolved against a caller-supplied <code>BarSchema</code>. New <code>sabia.typing</code> (<code>Adjustment</code>, <code>PriceRole</code>,
+  <code>VolumeRole</code>, <code>FactorRole</code>, <code>CalendarRole</code>, <code>InputRole</code>, <code>FeatureRef</code>) and <code>sabia.schema.BarSchema</code>.</li>
+<li><strong>Bound features.</strong> A factory binds params and returns a <code>BoundFeature</code> owning an immutable <code>.spec</code>
+  and <code>.expr(schema) -&gt; pl.Expr</code>; it never returns a raw expression. <code>make_feature</code> →
+  <code>registry.bind_feature</code>; <code>RegisteredFeature</code> → <code>BoundFeature</code>.</li>
+<li><strong>Richer <code>FeatureSpec</code>.</strong> <code>inputs: frozenset[Column]</code> → <code>input_roles: frozenset[InputRole]</code>; adds
+  <code>null_policy</code> (<code>NullPolicy</code>), <code>output_unit</code>/<code>output_range</code> (<code>Unit</code>), <code>evidence</code> (<code>Evidence</code>),
+  <code>dependencies</code>, <code>requires_universe</code>/<code>requires_complete_panel</code>; <code>citation: str</code> → <code>Citation</code>
+  (<code>sabia.references</code>); <code>params: Mapping</code> → <code>FrozenParams</code> (<code>sabia.params</code>). <code>Recurrence</code> gains
+  <code>RECURSIVE_DECAY</code> (was <code>RECURSIVE</code>), <code>PATH_DEPENDENT</code>, <code>EXPANDING</code>; v1 ships only <code>FINITE</code> +
+  <code>RECURSIVE_DECAY</code> (the registry rejects the other two).</li>
+<li><strong>Fingerprint algorithm change.</strong> <code>feature_fingerprint</code> now hashes
+  <code>canonical_id + version + bound params + input_roles + dependency fingerprints + polars pin</code> plus
+  the transitive closure of the <code>build(schema)</code> helpers — so <code>rsi_14</code> (<code>close@tr</code>) and <code>rsi_raw_14</code>
+  (<code>close@raw</code>) are provably distinct despite identical source. <strong>All prior fingerprints are
+  invalidated</strong> (regenerated in <code>tests/feature_manifest.py</code>).</li>
+<li><strong>Validation modes.</strong> <code>sabia.validate(frame, schema=…, mode=ValidationMode.STRICT|RESEARCH|OFF)</code>;
+  adds an OHLC-ordering check after role resolution; returns warnings as a <code>list[str]</code> (no logging in
+  core). <code>compute(..., validation=…)</code> shares the enum.</li>
+<li><strong>Transforms are pinned.</strong> <code>sabia.normalize</code> transforms return a <code>BoundTransform</code> carrying a
+  <code>TransformSpec</code> so the manifest pins transforms too.</li>
+<li><strong>Manifest.</strong> New <code>sabia.manifest.FeatureSetManifest</code> / <code>TransformRef</code> pinning bound features +
+  transforms + role map + calendar + dependency DAG + tool versions.</li>
+<li><strong>Calendar seam.</strong> New dependency-free <code>sabia.calendar</code> (<code>SessionCalendar</code> protocol + <code>UtcCalendar</code></li>
+<li><code>get_calendar</code>). Annualization uses <code>bars_per_year()</code>, never a hardcoded 252 in feature code.
+  <code>quando</code> is a <em>future</em> adapter, not a v1 runtime dependency.</li>
+<li><strong>Naming grammar.</strong> New <code>sabia.naming</code> (<code>naming()</code> Rule A + <code>assert_unique</code>).</li>
+</ul>
+<h3 id="added-inventory-66-bound-features-the-full-12-set-plus-documented-extras">Added — inventory (66 bound features, the full §12 set plus documented extras)</h3>
+<ul>
+<li>Migrated all prior families to the v5 contract and rounded out the §12 set: <code>ret_log_1/5/21/252</code>,
+  <code>ret_simple</code>, <code>ret_overnight</code>, <code>ret_intraday</code>, <code>drawdown_252</code>; <code>sma_dist_50</code>, <code>ema_dist_50</code>,
+  <code>dist_52w_high_252</code>, <code>price_pctile_252</code>, <code>ols_slope_63</code>, <code>macd_12_26_9</code> (+signal/hist);
+  <code>mom_252_21</code>, <code>roc_10/21</code>, <code>rsi_14</code>, <code>williams_r_14</code>, <code>stoch_k_14</code>, <code>stoch_d_14_3</code>, <code>cci_20</code>;
+  <code>vol_cc_21/63</code>, <code>vol_ewma_94</code>, <code>semivar_down_21</code>, <code>vol_parkinson_21</code>, <code>vol_gk_21</code>, <code>vol_rs_21</code>,
+  <code>vol_yz_21</code>, <code>atr_14</code>, <code>bb_pctb_20_2</code>, <code>bb_bw_20_2</code>; <code>vol_z_21</code>, <code>rel_volume_21</code>, <code>amihud_21</code>,
+  <code>vwap_dist_close</code>, <code>cmf_21</code>, <code>mfi_14</code>, <code>roll_spread_21</code>, <code>spread_corwin_schultz</code>; <code>skew_21</code>,
+  <code>kurt_21</code>, <code>downside_dev_21</code>, <code>up_down_vol_ratio_21</code>; <code>zscore_close_21</code>, <code>autocorr_1_21</code>,
+  <code>var_ratio_2_21</code>; <code>season_dow</code>, <code>season_tom_3</code>; <code>xs_rank_mom_252</code>, <code>xs_z_mom_252</code>, <code>rev_1m_21</code>,
+  <code>beta_252</code>, <code>idio_vol_252</code>.</li>
+<li>Completed the Tier-1.1 set: <code>bb_pctb_20_2</code> / <code>bb_bw_20_2</code> (Bollinger %B / bandwidth, <code>close@split</code>)
+  and the market-model features <code>beta_252</code> / <code>idio_vol_252</code> (rolling CAPM beta + idiosyncratic vol,
+  closed-form from rolling moments). Wires the <code>MARKET_RET</code> <code>FactorRole</code> into the test schema and
+  fixtures (incl. a <code>market_ret</code> column on the marketgoblin regression panel).</li>
+<li>Drifted extras with no §12 equivalent (<code>adx_14</code>, <code>half_life_60</code>, <code>adv_21</code>, <code>signed_vol_21</code>,
+  <code>dollar_vol</code>, price-level <code>sma_*</code>/<code>ema_*</code>, <code>ret_simple</code>) are retained and documented as "beyond §12".</li>
+</ul>
+<h3 id="fixed-code-review-hardening">Fixed — code-review hardening</h3>
+<ul>
+<li><strong>Cross-sectional output naming.</strong> <code>evaluate</code>/<code>compute</code> now alias every result to the feature name;
+  previously a cross-sectional reduction returned a column named <code>__sabia_xs_signal__</code>/<code>literal</code>, and
+  two rank-based XS features collided by name in <code>compute</code>.</li>
+<li><strong>No inf/NaN from returns.</strong> New <code>_math.log_return</code> (= <code>safe_log(safe_div(...))</code>) is the single
+  source for close-to-close returns across <code>returns</code>/<code>distribution</code>/<code>mean_reversion</code>/<code>volatility</code>;
+  <code>autocorr</code>/<code>var_ratio</code> (bare <code>.log()</code>) could emit NaN on a non-positive ratio, and
+  <code>safe_log(c/c.shift)</code> could emit inf on a zero base. Both now yield null (FEATURES.md 4.5).</li>
+<li><strong><code>mfi</code> flat window.</strong> A window with no flow now yields null (like RSI) instead of saturating at 100.</li>
+<li><strong>Fingerprint folds module constants.</strong> <code>feature_fingerprint</code> now hashes the <em>values</em> of module-level
+  constants a builder reads by name (e.g. <code>_CCI_SCALE</code>), so retuning a literal is provable at the
+  manifest gate (FEATURES.md 4.4). <code>_normalized_source</code>/<code>_module_constants</code> are cached.</li>
+<li><strong>Decay parity guarantee.</strong> <code>EWM_WARMUP_TOL</code> tightened to <code>1e-8</code> and <code>PARITY_RECURSIVE_TOLERANCE</code>
+  <em>derived</em> from it (<code>= 1e-6</code>, 100× headroom) so the burn-in always out-converges what parity
+  asserts; the two constants can no longer drift apart.</li>
+<li><strong>Universe enforcement.</strong> <code>compute(..., universe=…, membership_asof=…)</code> forwards to <code>validate</code>;
+  passing a cross-sectional feature without a <code>universe</code> now raises rather than inferring membership.</li>
+</ul>
+<h3 id="docs">Docs</h3>
+<ul>
+<li>New runnable, offline <code>examples/</code> suite: quickstart, roles &amp; adjustment, validation modes,
+  registry queries, cross-sectional / factor-model features, normalization transforms, and manifest
+  reproducibility (see <code>examples/README.md</code>).</li>
+</ul>
+<h3 id="tests">Tests</h3>
+<ul>
+<li>Reference-value and degenerate tests for the new features (<code>bb_pctb</code>/<code>bb_bw</code>, <code>beta</code>/<code>idio_vol</code>).</li>
+<li>Real-data regression suite (<code>tests/test_marketgoblin_regression.py</code>) over a committed offline
+  Yahoo panel fixture (<code>tests/data/marketgoblin_panel.parquet</code>, regenerated by
+  <code>generate_marketgoblin_fixture.py</code>): every shipped feature must be finite/non-empty on real prices,
+  XS columns must be named/collision-free, ranks form a per-date permutation, truncation is causal.</li>
+<li>Targeted unit tests: degenerate-input null contract (<code>test_degenerate.py</code>), role/adjustment
+  resolution + universe enforcement (<code>test_roles.py</code>), and fingerprint constant-folding /
+  tolerance-coupling (<code>test_spec.py</code>).</li>
+</ul>
+<h2 id="010-2026-06-01">[0.1.0] - 2026-06-01</h2>
+<h3 id="added_2">Added</h3>
+<ul>
+<li>Initial scaffold: package layout, tooling (ruff, mypy strict, pytest), CI, docs.</li>
+<li><code>spec.py</code>: <code>FeatureSpec</code> and the <code>Family</code> / <code>Horizon</code> / <code>DataTier</code> / <code>Recurrence</code> / <code>Cost</code> /
+  <code>Column</code> enums.</li>
+<li><code>validate.py</code>: the input contract (<code>sabia.validate</code>).</li>
+<li><code>registry.py</code>: constructable feature registry.</li>
+<li><code>normalize.py</code>: trailing/cross-sectional normalization transforms.</li>
+<li>Feature families (41 features): returns, volatility, momentum, trend, volume, distribution,
+  mean_reversion, seasonality, cross_sectional. (<code>microstructure</code> is enum-only; the module ships
+  later.)</li>
+<li>Public API: <code>sabia.compute</code> (eager materialization of <code>pl.Expr</code> features) and <code>sabia.evaluate</code>
+  (two-pass evaluation for cross-sectional features).</li>
+<li>Cross-cutting invariant harness (causality, windowed-recompute parity, warmup, null-propagation,
+  panel no-bleed, no-pandas guard) parametrized over the registry.</li>
+<li>Pinned feature-set manifest (<code>tests/feature_manifest.py</code>): a CI gate locking every feature's
+  <code>(name, version, fingerprint)</code>.</li>
+<li>Calibration (integration) and benchmark (slow) test suites under their pytest markers.</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+  <script>var tabs=__md_get("__tabs");if(Array.isArray(tabs))e:for(var set of document.querySelectorAll(".tabbed-set")){var labels=set.querySelector(".tabbed-labels");for(var tab of tabs)for(var label of labels.getElementsByTagName("label"))if(label.innerText.trim()===tab){var input=document.getElementById(label.htmlFor);input.checked=!0;continue e}}</script>
+
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+    
+      
+      <nav class="md-footer__inner md-grid" aria-label="Footer" >
+        
+          
+          <a href="../contributing/" class="md-footer__link md-footer__link--prev" aria-label="Previous: Contributing">
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+            </div>
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Previous
+              </span>
+              <div class="md-ellipsis">
+                Contributing
+              </div>
+            </div>
+          </a>
+        
+        
+      </nav>
+    
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+    <div class="md-copyright__highlight">
+      Copyright &copy; 2026 Antônio Salomão
+    </div>
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+        
+<div class="md-social">
+  
+    
+    
+    
+    
+    <a href="https://github.com/aexsalomao/sabia" target="_blank" rel="noopener" title="GitHub" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+    </a>
+  
+    
+    
+    
+    
+    <a href="https://pypi.org/project/sabia/" target="_blank" rel="noopener" title="PyPI" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.8 200.5c-7.7-30.9-22.3-54.2-53.4-54.2h-40.1v47.4c0 36.8-31.2 67.8-66.8 67.8H172.7c-29.2 0-53.4 25-53.4 54.3v101.8c0 29 25.2 46 53.4 54.3 33.8 9.9 66.3 11.7 106.8 0 26.9-7.8 53.4-23.5 53.4-54.3v-40.7H226.2v-13.6h160.2c31.1 0 42.6-21.7 53.4-54.2 11.2-33.5 10.7-65.7 0-108.6M286.2 444.7a20.4 20.4 0 1 1 0-40.7 20.4 20.4 0 1 1 0 40.7M167.8 248.1h106.8c29.7 0 53.4-24.5 53.4-54.3V91.9c0-29-24.4-50.7-53.4-55.6-35.8-5.9-74.7-5.6-106.8.1-45.2 8-53.4 24.7-53.4 55.6v40.7h106.9v13.6h-147c-31.1 0-58.3 18.7-66.8 54.2-9.8 40.7-10.2 66.1 0 108.6 7.6 31.6 25.7 54.2 56.8 54.2H101v-48.8c0-35.3 30.5-66.4 66.8-66.4m-6.6-183.4a20.4 20.4 0 1 1 0 40.8 20.4 20.4 0 1 1 0-40.8"/></svg>
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.tabs", "navigation.instant", "navigation.tracking", "navigation.sections", "navigation.top", "navigation.footer", "content.action.edit", "toc.follow", "search.suggest", "search.highlight", "content.code.copy", "content.code.annotate", "content.tabs.link"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+    
+  </body>
+</html>

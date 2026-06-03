@@ -1,0 +1,1426 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Polars-native technical features for trading pipelines — pure, point-in-time, online-ready">
+      
+      
+      
+        <link rel="canonical" href="https://aexsalomao.github.io/sabia/concepts/">
+      
+      
+        <link rel="prev" href="..">
+      
+      
+        <link rel="next" href="../catalog/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+    
+    
+      
+        <title>Concepts & guide - sabia</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.484c7ddc.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="teal" data-md-color-accent="green">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#concepts-guide" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="sabia" class="md-header__button md-logo" aria-label="sabia" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            sabia
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Concepts & guide
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="teal" data-md-color-accent="green"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="teal" data-md-color-accent="green"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/aexsalomao/sabia" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    aexsalomao/sabia
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href=".." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    <li class="md-tabs__item md-tabs__item--active">
+      <a href="./" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Concepts & guide
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../catalog/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Feature catalog
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../api/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  API Reference
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../contributing/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Contributing
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../changelog/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Changelog
+
+      </a>
+    </li>
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="sabia" class="md-nav__button md-logo" aria-label="sabia" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    sabia
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/aexsalomao/sabia" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    aexsalomao/sabia
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Concepts & guide
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Concepts & guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#what-sabia-is-and-is-not" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What sabia is (and is not)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-capabilities-at-a-glance" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The capabilities at a glance
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#column-roles-barschema" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Column roles &amp; BarSchema
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#feature-factories-boundfeature" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Feature factories &amp; BoundFeature
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#computing-features" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Computing features
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Computing features">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#warm-up-nulls-and-degenerate-inputs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Warm-up, nulls, and degenerate inputs
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#validation-the-input-contract" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Validation &amp; the input contract
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-registry-featurespec" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The registry &amp; FeatureSpec
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#normalization-transforms" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Normalization &amp; transforms
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#cross-sectional-panel-features" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Cross-sectional / panel features
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#recipes-featureset" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Recipes &amp; FeatureSet
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#reproducibility-fingerprints-manifests" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reproducibility: fingerprints &amp; manifests
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#where-to-go-next" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Where to go next
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../catalog/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Feature catalog
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../contributing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contributing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../changelog/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Changelog
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#what-sabia-is-and-is-not" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What sabia is (and is not)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-capabilities-at-a-glance" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The capabilities at a glance
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#column-roles-barschema" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Column roles &amp; BarSchema
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#feature-factories-boundfeature" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Feature factories &amp; BoundFeature
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#computing-features" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Computing features
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Computing features">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#warm-up-nulls-and-degenerate-inputs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Warm-up, nulls, and degenerate inputs
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#validation-the-input-contract" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Validation &amp; the input contract
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-registry-featurespec" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The registry &amp; FeatureSpec
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#normalization-transforms" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Normalization &amp; transforms
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#cross-sectional-panel-features" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Cross-sectional / panel features
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#recipes-featureset" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Recipes &amp; FeatureSet
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#reproducibility-fingerprints-manifests" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reproducibility: fingerprints &amp; manifests
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#where-to-go-next" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Where to go next
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+    <a href="https://github.com/aexsalomao/sabia/edit/master/docs/concepts.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M10 20H6V4h7v5h5v3.1l2-2V8l-6-6H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h4zm10.2-7c.1 0 .3.1.4.2l1.3 1.3c.2.2.2.6 0 .8l-1 1-2.1-2.1 1-1c.1-.1.2-.2.4-.2m0 3.9L14.1 23H12v-2.1l6.1-6.1z"/></svg>
+    </a>
+  
+  
+
+
+<h1 id="concepts-guide">Concepts &amp; guide</h1>
+<p>This page is the mental model. Read it once and the rest of the API falls into place. It assumes the
+<a href="../">quickstart</a> has run; here we slow down and explain <em>why</em> each moving part exists.</p>
+<h2 id="what-sabia-is-and-is-not">What sabia is (and is not)</h2>
+<p><code>sabia</code> is a <strong>pure technical-feature library</strong>. You hand it canonicalized OHLCV bars; it hands back
+<a href="https://pola.rs/">Polars</a> expressions that are strictly trailing and point-in-time correct. It is
+the <em>features</em> brick in a layered stack:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>marketgoblin (data in) → sabia (features) → quale (signals)
+</code></pre></div>
+<p>It is deliberately small in scope. sabia <strong>does</strong>:</p>
+<ul>
+<li>compute ~66 technical features across 9 families, each grounded in the trading/finance literature,</li>
+<li>standardize and stationarize them (rolling z-score, cross-sectional rank, fractional differencing),</li>
+<li>describe every feature's metadata (warm-up, recurrence, unit, evidence tier, citation),</li>
+<li>pin a feature set's exact definitions for reproducibility (fingerprints + manifest).</li>
+</ul>
+<p>sabia <strong>does not</strong> fetch data, adjust prices for splits/dividends, decide tradability, generate
+signals, build portfolios, or compute risk/PnL. Those belong to neighbouring layers — <code>marketgoblin</code>
+(data), <code>quale</code> (signals), <code>ruin</code> (risk/eval). sabia computes features and nothing else.</p>
+<div class="admonition note">
+<p class="admonition-title">The non-negotiables</p>
+<p>Every feature is <strong>pure</strong> (no I/O, clocks, randomness, or logging), <strong>causal</strong> (uses only
+information at or before bar <code>t</code> — no window ever touches the future), <strong>point-in-time correct</strong>,
+and <strong>deterministic</strong> within a declared float tolerance. These are enforced by the test suite —
+causality tests, windowed-recompute parity tests, a no-pandas import guard — not by convention.</p>
+</div>
+<h2 id="the-capabilities-at-a-glance">The capabilities at a glance</h2>
+<table>
+<thead>
+<tr>
+<th>Family</th>
+<th>What it measures</th>
+<th>Examples</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>returns</code></td>
+<td>log/simple returns, intraday/overnight splits, drawdown</td>
+<td><code>ret_log</code>, <code>ret_intraday</code>, <code>drawdown</code></td>
+</tr>
+<tr>
+<td><code>trend</code></td>
+<td>moving averages, distance-to-trend, MACD, ADX, OLS slope</td>
+<td><code>sma_dist</code>, <code>ema_dist</code>, <code>macd_hist</code>, <code>adx</code></td>
+</tr>
+<tr>
+<td><code>momentum</code></td>
+<td>rate of change, RSI, stochastics, formation-period momentum</td>
+<td><code>roc</code>, <code>rsi</code>, <code>stoch_k</code>, <code>mom</code>, <code>cci</code></td>
+</tr>
+<tr>
+<td><code>volatility</code></td>
+<td>close-to-close + OHLC range estimators, EWMA, ATR</td>
+<td><code>vol_cc</code>, <code>vol_yz</code>, <code>vol_gk</code>, <code>vol_ewma</code>, <code>atr</code></td>
+</tr>
+<tr>
+<td><code>volume</code></td>
+<td>liquidity, dollar volume, Amihud illiquidity, spreads, flow</td>
+<td><code>dollar_vol</code>, <code>amihud</code>, <code>mfi</code>, <code>roll_spread</code></td>
+</tr>
+<tr>
+<td><code>distribution</code></td>
+<td>skew, kurtosis, downside/up-down dispersion</td>
+<td><code>skew</code>, <code>kurt</code>, <code>downside_dev</code></td>
+</tr>
+<tr>
+<td><code>mean_reversion</code></td>
+<td>autocorrelation, variance ratio, half-life, z-distance</td>
+<td><code>autocorr</code>, <code>var_ratio</code>, <code>half_life</code>, <code>zscore_close</code></td>
+</tr>
+<tr>
+<td><code>seasonality</code></td>
+<td>day-of-week, turn-of-month effects</td>
+<td><code>season_dow</code>, <code>season_tom</code></td>
+</tr>
+<tr>
+<td><code>cross_sectional</code></td>
+<td>panel rank/z momentum, reversal, market beta, idio vol</td>
+<td><code>xs_rank_mom</code>, <code>beta</code>, <code>idio_vol</code></td>
+</tr>
+<tr>
+<td><code>normalize</code></td>
+<td>trailing &amp; cross-sectional standardizers, fractional diff</td>
+<td><code>zscore</code>, <code>xs_rank</code>, <code>frac_diff</code></td>
+</tr>
+</tbody>
+</table>
+<p>The <a href="../catalog/">feature catalog</a> lists every shipped feature with its params, roles, warm-up,
+recurrence, unit, and evidence tier. <code>microstructure</code> exists in the <code>Family</code> enum but ships in a
+later minor version — v1 is bars-only.</p>
+<h2 id="column-roles-barschema">Column roles &amp; <code>BarSchema</code></h2>
+<p>This is the one concept worth getting right before anything else.</p>
+<p>A feature does not ask for a column named <code>"close"</code>. It asks for a <strong>role</strong> — say <code>close@tr</code> (the
+close on a <em>total-return</em> basis) or <code>high@split</code> (the high on a <em>split-only</em> basis). A <code>BarSchema</code>
+is the caller-supplied map from those roles to the physical column names in <em>your</em> frame.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">sabia</span><span class="w"> </span><span class="kn">import</span> <span class="n">BarSchema</span><span class="p">,</span> <span class="n">PriceRole</span><span class="p">,</span> <span class="n">PriceField</span><span class="p">,</span> <span class="n">Adjustment</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="c1"># Explicit form: declare exactly which physical column carries which role.</span>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="n">schema</span> <span class="o">=</span> <span class="n">BarSchema</span><span class="p">(</span><span class="n">roles</span><span class="o">=</span><span class="p">{</span>
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>    <span class="n">PriceRole</span><span class="p">(</span><span class="n">PriceField</span><span class="o">.</span><span class="n">CLOSE</span><span class="p">,</span> <span class="n">Adjustment</span><span class="o">.</span><span class="n">TR</span><span class="p">):</span>    <span class="s2">&quot;adj_close&quot;</span><span class="p">,</span>   <span class="c1"># dividend-adjusted close</span>
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>    <span class="n">PriceRole</span><span class="p">(</span><span class="n">PriceField</span><span class="o">.</span><span class="n">CLOSE</span><span class="p">,</span> <span class="n">Adjustment</span><span class="o">.</span><span class="n">SPLIT</span><span class="p">):</span> <span class="s2">&quot;close&quot;</span><span class="p">,</span>       <span class="c1"># split-adjusted only</span>
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>    <span class="n">PriceRole</span><span class="p">(</span><span class="n">PriceField</span><span class="o">.</span><span class="n">HIGH</span><span class="p">,</span>  <span class="n">Adjustment</span><span class="o">.</span><span class="n">SPLIT</span><span class="p">):</span> <span class="s2">&quot;high&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>    <span class="c1"># ...</span>
+<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="p">})</span>
+</code></pre></div>
+<p>Why two adjustment bases? Returns/momentum/trend features want a <strong>total-return</strong> series
+(<code>@tr</code>) so a dividend drop is not mistaken for a real loss. Range estimators (Parkinson, Garman-Klass,
+Yang-Zhang) want a <strong>split-only</strong> series (<code>@split</code>) where the high/low/open/close are mutually
+consistent within the bar. sabia adjusts nothing — <em>you</em> declare which basis each column carries,
+and the manifest pins that declaration.</p>
+<p>For the common case, <code>BarSchema.ohlcv()</code> builds the whole map from plain column names:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="n">schema</span> <span class="o">=</span> <span class="n">BarSchema</span><span class="o">.</span><span class="n">ohlcv</span><span class="p">()</span>                       <span class="c1"># open/high/low/close/volume by name</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="n">schema</span> <span class="o">=</span> <span class="n">BarSchema</span><span class="o">.</span><span class="n">ohlcv</span><span class="p">(</span><span class="n">close</span><span class="o">=</span><span class="s2">&quot;px&quot;</span><span class="p">,</span> <span class="n">volume</span><span class="o">=</span><span class="s2">&quot;vol&quot;</span><span class="p">)</span>   <span class="c1"># custom names</span>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="n">schema</span> <span class="o">=</span> <span class="n">BarSchema</span><span class="o">.</span><span class="n">ohlcv</span><span class="p">(</span><span class="n">tr_close</span><span class="o">=</span><span class="s2">&quot;adj_close&quot;</span><span class="p">)</span>       <span class="c1"># separate total-return close</span>
+</code></pre></div>
+<div class="admonition warning">
+<p class="admonition-title">The <code>@tr</code> conflation in <code>ohlcv()</code></p>
+<p>When you omit <code>tr_close</code>, <code>close@tr</code> is backed by the <strong>same split-only column</strong> as
+<code>close@split</code>. There is no separate total-return series, so return/momentum/trend features
+silently run on split-only prices <em>labelled</em> total return. On dividend-paying instruments this is
+wrong — the dividend drop is treated as a real return. Pass <code>tr_close=</code> (e.g. an <code>adj_close</code>
+column) whenever a distinct total-return close exists.</p>
+</div>
+<p><code>symbol</code> and <code>timestamp</code> are fixed canonical column names (override via <code>symbol_col=</code>/<code>timestamp_col=</code>
+if yours differ); they are not role-tagged. Pass <code>closed_col=</code> to mark which bars are closed and
+<code>calendar=</code> for the exchange code.</p>
+<h2 id="feature-factories-boundfeature">Feature factories &amp; <code>BoundFeature</code></h2>
+<p>Every feature is a <strong>factory</strong> with keyword-only params. Calling it binds the params and returns a
+<code>BoundFeature</code> — it does <strong>not</strong> return a <code>pl.Expr</code> directly:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">sabia</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="n">bf</span> <span class="o">=</span> <span class="n">sabia</span><span class="o">.</span><span class="n">momentum</span><span class="o">.</span><span class="n">rsi</span><span class="p">(</span><span class="n">period</span><span class="o">=</span><span class="mi">14</span><span class="p">)</span>   <span class="c1"># -&gt; BoundFeature</span>
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="n">bf</span><span class="o">.</span><span class="n">spec</span><span class="o">.</span><span class="n">name</span>          <span class="c1"># &#39;rsi_14&#39;</span>
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="n">bf</span><span class="o">.</span><span class="n">spec</span><span class="o">.</span><span class="n">min_history</span>   <span class="c1"># 249  (bars of warm-up before it is valid)</span>
+<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="n">bf</span><span class="o">.</span><span class="n">expr</span><span class="p">(</span><span class="n">schema</span><span class="p">)</span>       <span class="c1"># -&gt; pl.Expr, with roles resolved against `schema`</span>
+</code></pre></div>
+<p>A <code>BoundFeature</code> is two things: an immutable <code>.spec</code> (all the metadata — see <a href="#the-registry-featurespec">the registry</a>)
+and <code>.expr(schema)</code>, which resolves the feature's roles against your schema and returns the Polars
+expression. You rarely call <code>.expr()</code> yourself — <code>compute()</code> does it for you.</p>
+<h2 id="computing-features">Computing features</h2>
+<p><code>sabia.compute()</code> is the workhorse. It validates the frame, resolves every feature's roles, and
+materializes a <code>pl.DataFrame</code>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="n">features</span> <span class="o">=</span> <span class="n">sabia</span><span class="o">.</span><span class="n">compute</span><span class="p">(</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>    <span class="n">frame</span><span class="p">,</span>
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>    <span class="n">sabia</span><span class="o">.</span><span class="n">returns</span><span class="o">.</span><span class="n">ret_log</span><span class="p">(</span><span class="n">period</span><span class="o">=</span><span class="mi">1</span><span class="p">),</span>
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>    <span class="n">sabia</span><span class="o">.</span><span class="n">momentum</span><span class="o">.</span><span class="n">roc</span><span class="p">(</span><span class="n">window</span><span class="o">=</span><span class="mi">5</span><span class="p">),</span>
+<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>    <span class="n">sabia</span><span class="o">.</span><span class="n">volatility</span><span class="o">.</span><span class="n">vol_cc</span><span class="p">(</span><span class="n">window</span><span class="o">=</span><span class="mi">10</span><span class="p">),</span>
+<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>    <span class="n">schema</span><span class="o">=</span><span class="n">schema</span><span class="p">,</span>
+<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a>    <span class="n">include_keys</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>   <span class="c1"># prepend symbol + timestamp, aligned row-for-row</span>
+<a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a><span class="p">)</span>
+</code></pre></div>
+<p>The result carries only the feature columns, aligned row-for-row with <code>frame</code>. <code>include_keys=True</code>
+prepends the identity columns (<code>symbol</code> if it's a panel, plus <code>timestamp</code>) — what a downstream
+pipeline usually wants.</p>
+<ul>
+<li><strong><code>compute_lazy(frame, *features, schema=)</code></strong> returns a <code>pl.LazyFrame</code> and materializes nothing.
+  It is time-series only (no cross-sectional features) and <strong>does not validate</strong> — call
+  <code>sabia.validate(...)</code> yourself first if the frame is untrusted.</li>
+<li>Two features with the same name in one <code>compute</code> call are rejected (a naming collision is a bug).</li>
+<li>Time-series features fuse into a single <code>select</code> / one <code>collect()</code>. Cross-sectional features are
+  inherently two-pass and each costs its own materialization (an N+1 pattern) — batch them
+  deliberately.</li>
+</ul>
+<h3 id="warm-up-nulls-and-degenerate-inputs">Warm-up, nulls, and degenerate inputs</h3>
+<p>A rolling statistic needs a full window before it can emit, so every feature produces <code>null</code> during
+its <strong>warm-up</strong>. <code>spec.min_history</code> is the number of bars before a feature is valid. To trim the
+leading warm-up rows from a result:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="n">clean</span> <span class="o">=</span> <span class="n">sabia</span><span class="o">.</span><span class="n">drop_warmup</span><span class="p">(</span><span class="n">features</span><span class="p">,</span> <span class="p">[</span><span class="n">bf1</span><span class="p">,</span> <span class="n">bf2</span><span class="p">],</span> <span class="n">symbol_col</span><span class="o">=</span><span class="s2">&quot;symbol&quot;</span><span class="p">)</span>
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="n">n</span> <span class="o">=</span> <span class="n">sabia</span><span class="o">.</span><span class="n">max_min_history</span><span class="p">([</span><span class="n">bf1</span><span class="p">,</span> <span class="n">bf2</span><span class="p">])</span>   <span class="c1"># the largest warm-up across the set</span>
+</code></pre></div>
+<p><code>drop_warmup</code> removes the first <code>max_min_history(...)</code> rows (per symbol on a panel) — a safe upper
+bound, so no null-warm-up row survives.</p>
+<p>Separately, <strong>degenerate input</strong> yields <code>null</code> by design: a flat price series gives an undefined
+RSI, a zero-volume bar gives an undefined MFI, a log of a non-positive price is undefined. This is
+documented domain behavior, not an error — <code>null</code> is the honest answer. Loud failure is reserved for
+malformed <em>frames</em>, at <code>validate()</code>.</p>
+<h2 id="validation-the-input-contract">Validation &amp; the input contract</h2>
+<p><code>sabia.validate(frame, schema=...)</code> enforces the contract every feature assumes: timestamps are
+sorted, unique, and tz-aware UTC; each symbol is independently sorted; required columns exist with
+the right dtypes; bars are closed; and — for cross-sectional features — the panel is complete across
+the declared universe. It raises <code>SabiaValidationError</code> on the first hard violation.</p>
+<p><code>compute()</code> runs validation for you. Its strictness is controlled by <code>ValidationMode</code>:</p>
+<table>
+<thead>
+<tr>
+<th>Mode</th>
+<th>Behavior</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>STRICT</code> (default)</td>
+<td>raise on any contract violation</td>
+</tr>
+<tr>
+<td><code>RESEARCH</code></td>
+<td>warn on completeness/finalization; still raise on schema/dtype/role errors</td>
+</tr>
+<tr>
+<td><code>OFF</code></td>
+<td>skip validation entirely</td>
+</tr>
+</tbody>
+</table>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="n">sabia</span><span class="o">.</span><span class="n">compute</span><span class="p">(</span><span class="n">frame</span><span class="p">,</span> <span class="n">bf</span><span class="p">,</span> <span class="n">schema</span><span class="o">=</span><span class="n">schema</span><span class="p">,</span> <span class="n">validation</span><span class="o">=</span><span class="n">sabia</span><span class="o">.</span><span class="n">ValidationMode</span><span class="o">.</span><span class="n">RESEARCH</span><span class="p">)</span>
+</code></pre></div>
+<p>For a non-fatal health check — counts and ranges, never a raise — use <code>audit_frame</code>, which returns a
+<code>FrameAudit</code> you can inspect before launching an expensive feature job:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="n">report</span> <span class="o">=</span> <span class="n">sabia</span><span class="o">.</span><span class="n">audit_frame</span><span class="p">(</span><span class="n">frame</span><span class="p">,</span> <span class="n">schema</span><span class="o">=</span><span class="n">schema</span><span class="p">,</span> <span class="n">features</span><span class="o">=</span><span class="p">[</span><span class="n">bf1</span><span class="p">,</span> <span class="n">bf2</span><span class="p">])</span>
+</code></pre></div>
+<h2 id="the-registry-featurespec">The registry &amp; <code>FeatureSpec</code></h2>
+<p><code>Registry.default()</code> assembles every shipped feature. It is built by <strong>explicit collection</strong> — there
+is no global singleton and no import-time registration side effect, so it is embeddable and
+test-isolatable. Query it functionally:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="n">reg</span> <span class="o">=</span> <span class="n">sabia</span><span class="o">.</span><span class="n">Registry</span><span class="o">.</span><span class="n">default</span><span class="p">()</span>
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="n">reg</span><span class="o">.</span><span class="n">specs</span><span class="p">()</span>                                                    <span class="c1"># all FeatureSpecs</span>
+<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="n">reg</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="k">lambda</span> <span class="n">s</span><span class="p">:</span> <span class="n">sabia</span><span class="o">.</span><span class="n">Horizon</span><span class="o">.</span><span class="n">MEDIUM</span> <span class="ow">in</span> <span class="n">s</span><span class="o">.</span><span class="n">native_band</span><span class="p">)</span>     <span class="c1"># by horizon band</span>
+<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a><span class="n">reg</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="k">lambda</span> <span class="n">s</span><span class="p">:</span> <span class="n">s</span><span class="o">.</span><span class="n">family</span> <span class="ow">is</span> <span class="n">sabia</span><span class="o">.</span><span class="n">Family</span><span class="o">.</span><span class="n">VOLATILITY</span><span class="p">)</span>       <span class="c1"># by family</span>
+<a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a><span class="n">reg</span><span class="o">.</span><span class="n">available</span><span class="p">(</span><span class="n">sabia</span><span class="o">.</span><span class="n">DataTier</span><span class="o">.</span><span class="n">DAILY</span><span class="p">)</span>                            <span class="c1"># computable on daily bars</span>
+</code></pre></div>
+<p><code>reg.available(tier)</code> returns features computable on input bars of that granularity — finer input
+bars unlock strictly more features (<code>TICK</code> &lt; <code>MINUTE</code> &lt; <code>DAILY</code>).</p>
+<p>Each feature carries a frozen <code>FeatureSpec</code>. The fields most useful to a consumer:</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>name</code></td>
+<td>unique snake-case id, e.g. <code>rsi_14</code></td>
+</tr>
+<tr>
+<td><code>family</code></td>
+<td>one of the 9 <code>Family</code> values</td>
+</tr>
+<tr>
+<td><code>native_band</code></td>
+<td>the <code>Horizon</code> bands where the feature is primary</td>
+</tr>
+<tr>
+<td><code>min_history</code></td>
+<td>warm-up bars before the feature is valid</td>
+</tr>
+<tr>
+<td><code>effective_warmup</code></td>
+<td>burn-in for recursive features to converge within tolerance</td>
+</tr>
+<tr>
+<td><code>recurrence</code></td>
+<td><code>FINITE</code> (exact tail-recompute) or <code>RECURSIVE_DECAY</code> (exact within tolerance)</td>
+</tr>
+<tr>
+<td><code>output_unit</code></td>
+<td><code>Unit</code> of the output — <code>LOG_RETURN</code>, <code>ZSCORE</code>, <code>INDEX_0_100</code>, …</td>
+</tr>
+<tr>
+<td><code>data_tier</code></td>
+<td>minimum input granularity (<code>DataTier</code>)</td>
+</tr>
+<tr>
+<td><code>cost_class</code></td>
+<td>per-update online <code>Cost</code> hint (<code>O1</code> / <code>LINEAR</code> / <code>HEAVY</code>)</td>
+</tr>
+<tr>
+<td><code>input_roles</code></td>
+<td>the column roles a <code>BarSchema</code> must resolve</td>
+</tr>
+<tr>
+<td><code>evidence</code></td>
+<td>empirical standing <em>as constructed</em> — <code>formula_only</code>, <code>ta_canon</code>, <code>academic_single</code>, <code>academic_replicated</code> (not a predictability claim)</td>
+</tr>
+<tr>
+<td><code>citation</code></td>
+<td>the literature reference</td>
+</tr>
+</tbody>
+</table>
+<p><code>sabia.describe(bf)</code> renders a readable one-feature card from the spec for notebooks and debugging.</p>
+<h2 id="normalization-transforms">Normalization &amp; transforms</h2>
+<p>Features are raw measurements; normalization makes them comparable. The <code>normalize</code> module ships
+trailing and cross-sectional transforms that obey the <strong>same causality invariant</strong> as features. A
+transform factory returns a <code>BoundTransform</code> — a pinned <code>.spec</code> plus <code>.apply(expr) -&gt; expr</code> — so you
+pipe a resolved feature expression through it:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="n">z</span>   <span class="o">=</span> <span class="n">sabia</span><span class="o">.</span><span class="n">normalize</span><span class="o">.</span><span class="n">zscore</span><span class="p">(</span><span class="n">window</span><span class="o">=</span><span class="mi">63</span><span class="p">)</span>         <span class="c1"># trailing rolling z-score</span>
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="n">xsz</span> <span class="o">=</span> <span class="n">sabia</span><span class="o">.</span><span class="n">normalize</span><span class="o">.</span><span class="n">xs_zscore</span><span class="p">(</span><span class="n">winsorize</span><span class="o">=</span><span class="mf">3.0</span><span class="p">)</span>  <span class="c1"># cross-sectional z within each timestamp</span>
+<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="n">xsr</span> <span class="o">=</span> <span class="n">sabia</span><span class="o">.</span><span class="n">normalize</span><span class="o">.</span><span class="n">xs_rank</span><span class="p">()</span>                 <span class="c1"># cross-sectional percentile rank in (0, 1]</span>
+<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="n">fd</span>  <span class="o">=</span> <span class="n">sabia</span><span class="o">.</span><span class="n">normalize</span><span class="o">.</span><span class="n">frac_diff</span><span class="p">(</span><span class="n">d</span><span class="o">=</span><span class="mf">0.4</span><span class="p">)</span>          <span class="c1"># fractional differencing: stationarity with memory</span>
+<a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a>
+<a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a><span class="n">expr</span> <span class="o">=</span> <span class="n">z</span><span class="o">.</span><span class="n">apply</span><span class="p">(</span><span class="n">sabia</span><span class="o">.</span><span class="n">trend</span><span class="o">.</span><span class="n">ols_slope</span><span class="p">(</span><span class="n">window</span><span class="o">=</span><span class="mi">63</span><span class="p">)</span><span class="o">.</span><span class="n">expr</span><span class="p">(</span><span class="n">schema</span><span class="p">))</span>
+</code></pre></div>
+<ul>
+<li><strong>Trailing</strong> transforms (<code>zscore</code>, <code>frac_diff</code>) look only backward over <code>window</code>/lag.</li>
+<li><strong>Cross-sectional</strong> transforms (<code>xs_zscore</code>, <code>xs_rank</code>) compute within a single timestamp slice and
+  never pool across time.</li>
+<li>Degenerate slices (zero dispersion) yield <code>null</code>, never <code>inf</code>.</li>
+<li><code>frac_diff</code> (Lopez de Prado FFD) trades the minimum differencing needed for stationarity against
+  retaining long memory; its weight count is surfaced as the transform's warm-up.</li>
+</ul>
+<h2 id="cross-sectional-panel-features">Cross-sectional / panel features</h2>
+<p>Cross-sectional features rank or standardize <em>across symbols at each timestamp</em> (<code>xs_rank_mom</code>,
+<code>xs_z_mom</code>, <code>rev_1m</code>), or regress a symbol against the market (<code>beta</code>, <code>idio_vol</code>). They impose two
+extra contract requirements:</p>
+<ul>
+<li><strong><code>requires_universe</code></strong> — rank/z/reversal features compare a symbol to its peers, so you must
+  declare the universe explicitly. Pass <code>universe=[...]</code> (a static symbol set) or <code>membership=</code>
+  (an as-of <code>(symbol, start, end)</code> frame) to <code>compute</code>. sabia asserts completeness against the
+  declared universe; it never infers it from whichever symbols happen to be present.</li>
+<li><strong><code>market_ret</code></strong> — <code>beta</code>/<code>idio_vol</code> are per-symbol but need a market-return column; declare it as
+  a role in the schema.</li>
+</ul>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="n">out</span> <span class="o">=</span> <span class="n">sabia</span><span class="o">.</span><span class="n">compute</span><span class="p">(</span>
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>    <span class="n">panel</span><span class="p">,</span>
+<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>    <span class="n">sabia</span><span class="o">.</span><span class="n">cross_sectional</span><span class="o">.</span><span class="n">xs_rank_mom</span><span class="p">(</span><span class="n">formation</span><span class="o">=</span><span class="mi">252</span><span class="p">,</span> <span class="n">skip</span><span class="o">=</span><span class="mi">21</span><span class="p">),</span>
+<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a>    <span class="n">schema</span><span class="o">=</span><span class="n">schema</span><span class="p">,</span>
+<a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a>    <span class="n">universe</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;AAA&quot;</span><span class="p">,</span> <span class="s2">&quot;BBB&quot;</span><span class="p">,</span> <span class="s2">&quot;CCC&quot;</span><span class="p">],</span>
+<a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a><span class="p">)</span>
+</code></pre></div>
+<h2 id="recipes-featureset">Recipes &amp; <code>FeatureSet</code></h2>
+<p>A <code>FeatureSet</code> is an immutable, named bundle of bound features — a name for a fixed list, nothing
+more. It saves you threading dozens of features through a variadic <code>compute</code>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="n">fs</span> <span class="o">=</span> <span class="n">sabia</span><span class="o">.</span><span class="n">recipes</span><span class="o">.</span><span class="n">daily_core</span><span class="p">()</span>          <span class="c1"># returns + momentum + vol + trend + distribution</span>
+<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a><span class="n">fs</span><span class="o">.</span><span class="n">compute</span><span class="p">(</span><span class="n">frame</span><span class="p">,</span> <span class="n">schema</span><span class="o">=</span><span class="n">schema</span><span class="p">,</span> <span class="n">include_keys</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a><span class="n">fs</span><span class="o">.</span><span class="n">names</span><span class="p">()</span>                               <span class="c1"># the feature names in the set</span>
+<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a><span class="n">fs</span><span class="o">.</span><span class="n">manifest</span><span class="p">(</span><span class="n">schema</span><span class="p">)</span>                      <span class="c1"># pin it (see below)</span>
+</code></pre></div>
+<p>Shipped recipes: <code>daily_core()</code>, <code>volatility_core()</code>, <code>cross_sectional_core()</code>. They are <em>sensible
+default panels</em>, <strong>not</strong> strategies — no signals, thresholds, or portfolio opinions. Build your own
+with <code>sabia.FeatureSet([...])</code>.</p>
+<h2 id="reproducibility-fingerprints-manifests">Reproducibility: fingerprints &amp; manifests</h2>
+<p>Every feature carries a <code>fingerprint</code> — a best-effort reproducibility hash over its bound params,
+roles, dependencies, the <strong>pinned Polars version</strong>, and the normalized source of its expression.
+A <code>FeatureSetManifest</code> bundles the fingerprints of a whole feature set (plus any transforms and the
+schema) and serializes so a stored dataset can carry its exact definitions across train and serve:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="n">manifest</span> <span class="o">=</span> <span class="n">sabia</span><span class="o">.</span><span class="n">FeatureSetManifest</span><span class="o">.</span><span class="n">of</span><span class="p">([</span><span class="n">bf1</span><span class="p">,</span> <span class="n">bf2</span><span class="p">],</span> <span class="p">(),</span> <span class="n">schema</span><span class="p">,</span> <span class="n">sabia_version</span><span class="o">=</span><span class="n">sabia</span><span class="o">.</span><span class="n">__version__</span><span class="p">)</span>
+<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a><span class="n">blob</span> <span class="o">=</span> <span class="n">manifest</span><span class="o">.</span><span class="n">to_json</span><span class="p">()</span>
+<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a><span class="n">restored</span> <span class="o">=</span> <span class="n">sabia</span><span class="o">.</span><span class="n">FeatureSetManifest</span><span class="o">.</span><span class="n">from_json</span><span class="p">(</span><span class="n">blob</span><span class="p">)</span>
+</code></pre></div>
+<p>A fingerprint change means "prove this was intended" — a retuned constant, a swapped role, an edited
+formula — and the CI manifest gate enforces exactly that. It is source-based, so two mathematically
+equivalent rewrites <em>can</em> fingerprint differently; treat a change as a flag to review, not as a proof
+of behavioral difference. This is why sabia pins <code>polars</code> exactly and targets a fixed Python — the
+fingerprint folds in the Polars version, so a dataset's feature definitions stay provable.</p>
+<h2 id="where-to-go-next">Where to go next</h2>
+<ul>
+<li><strong><a href="../catalog/">Feature catalog</a></strong> — every shipped feature, its params, warm-up, and evidence tier.</li>
+<li><strong><a href="../api/">API reference</a></strong> — the complete public surface.</li>
+<li><strong>Runnable examples</strong> — <code>examples/01_quickstart.py</code> … <code>07_manifest.py</code> in the repo, plus a Plotly
+  notebook gallery under <code>examples/notebooks/</code>.</li>
+<li><strong><code>FEATURES.md</code></strong> — the full specification and literature citations.</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+  <script>var tabs=__md_get("__tabs");if(Array.isArray(tabs))e:for(var set of document.querySelectorAll(".tabbed-set")){var labels=set.querySelector(".tabbed-labels");for(var tab of tabs)for(var label of labels.getElementsByTagName("label"))if(label.innerText.trim()===tab){var input=document.getElementById(label.htmlFor);input.checked=!0;continue e}}</script>
+
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+    
+      
+      <nav class="md-footer__inner md-grid" aria-label="Footer" >
+        
+          
+          <a href=".." class="md-footer__link md-footer__link--prev" aria-label="Previous: Home">
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+            </div>
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Previous
+              </span>
+              <div class="md-ellipsis">
+                Home
+              </div>
+            </div>
+          </a>
+        
+        
+          
+          <a href="../catalog/" class="md-footer__link md-footer__link--next" aria-label="Next: Feature catalog">
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Next
+              </span>
+              <div class="md-ellipsis">
+                Feature catalog
+              </div>
+            </div>
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 11v2h12l-5.5 5.5 1.42 1.42L19.84 12l-7.92-7.92L10.5 5.5 16 11z"/></svg>
+            </div>
+          </a>
+        
+      </nav>
+    
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+    <div class="md-copyright__highlight">
+      Copyright &copy; 2026 Antônio Salomão
+    </div>
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+        
+<div class="md-social">
+  
+    
+    
+    
+    
+    <a href="https://github.com/aexsalomao/sabia" target="_blank" rel="noopener" title="GitHub" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+    </a>
+  
+    
+    
+    
+    
+    <a href="https://pypi.org/project/sabia/" target="_blank" rel="noopener" title="PyPI" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.8 200.5c-7.7-30.9-22.3-54.2-53.4-54.2h-40.1v47.4c0 36.8-31.2 67.8-66.8 67.8H172.7c-29.2 0-53.4 25-53.4 54.3v101.8c0 29 25.2 46 53.4 54.3 33.8 9.9 66.3 11.7 106.8 0 26.9-7.8 53.4-23.5 53.4-54.3v-40.7H226.2v-13.6h160.2c31.1 0 42.6-21.7 53.4-54.2 11.2-33.5 10.7-65.7 0-108.6M286.2 444.7a20.4 20.4 0 1 1 0-40.7 20.4 20.4 0 1 1 0 40.7M167.8 248.1h106.8c29.7 0 53.4-24.5 53.4-54.3V91.9c0-29-24.4-50.7-53.4-55.6-35.8-5.9-74.7-5.6-106.8.1-45.2 8-53.4 24.7-53.4 55.6v40.7h106.9v13.6h-147c-31.1 0-58.3 18.7-66.8 54.2-9.8 40.7-10.2 66.1 0 108.6 7.6 31.6 25.7 54.2 56.8 54.2H101v-48.8c0-35.3 30.5-66.4 66.8-66.4m-6.6-183.4a20.4 20.4 0 1 1 0 40.8 20.4 20.4 0 1 1 0-40.8"/></svg>
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.tabs", "navigation.instant", "navigation.tracking", "navigation.sections", "navigation.top", "navigation.footer", "content.action.edit", "toc.follow", "search.suggest", "search.highlight", "content.code.copy", "content.code.annotate", "content.tabs.link"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+    
+  </body>
+</html>
