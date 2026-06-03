@@ -69,6 +69,7 @@ markdown_extensions:
 
 nav:
   - Home: index.md
+  - Concepts & guide: concepts.md
   - Feature catalog: catalog.md
   - API Reference: api.md
   - Contributing: contributing.md

@@ -23,6 +23,29 @@ deterministic. **Batch-first, online-ready**: nothing streams in v1, but every f
 history it needs and is covered by a windowed-recompute parity test, so a future online engine is a
 thin wrapper rather than a rewrite.
 
+## What's in the box
+
+~66 features across nine families, each grounded in the trading/finance literature, plus a
+normalization layer, a queryable registry, and reproducibility manifests:
+
+| Family | Measures | Examples |
+|---|---|---|
+| `returns` | log/simple returns, intraday/overnight, drawdown | `ret_log`, `ret_intraday`, `drawdown` |
+| `trend` | moving averages, distance-to-trend, MACD, ADX | `sma_dist`, `ema_dist`, `macd_hist`, `adx` |
+| `momentum` | rate of change, RSI, stochastics, formation momentum | `roc`, `rsi`, `stoch_k`, `mom`, `cci` |
+| `volatility` | close-to-close + OHLC range estimators, EWMA, ATR | `vol_cc`, `vol_yz`, `vol_gk`, `vol_ewma`, `atr` |
+| `volume` | liquidity, dollar volume, Amihud, spreads, flow | `dollar_vol`, `amihud`, `mfi`, `roll_spread` |
+| `distribution` | skew, kurtosis, downside dispersion | `skew`, `kurt`, `downside_dev` |
+| `mean_reversion` | autocorrelation, variance ratio, half-life | `autocorr`, `var_ratio`, `half_life` |
+| `seasonality` | day-of-week, turn-of-month effects | `season_dow`, `season_tom` |
+| `cross_sectional` | panel rank/z momentum, reversal, beta, idio vol | `xs_rank_mom`, `beta`, `idio_vol` |
+| `normalize` | trailing & cross-sectional standardizers, fractional diff | `zscore`, `xs_rank`, `frac_diff` |
+
+New to the library? The **[Concepts & guide](https://aexsalomao.github.io/sabia/concepts/)** explains
+column roles, `BarSchema`, warm-up/null semantics, validation modes, the registry, and manifests. The
+**[feature catalog](https://aexsalomao.github.io/sabia/catalog/)** lists every feature with its
+params, warm-up, recurrence, unit, and evidence tier.
+
 ## Install
 
 ```bash
