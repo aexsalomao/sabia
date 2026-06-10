@@ -99,7 +99,7 @@ from sabia.validate import (
 )
 
 # Kept in sync with pyproject.toml by tests/test_invariants.py::test_version_matches_pyproject.
-__version__ = "0.4.0"
+__version__ = "0.5.0"
 
 
 def compute(

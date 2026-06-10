@@ -6,6 +6,41 @@ All notable changes to `sabia` are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-06-10
+
+The post-v1 intraday microstructure tier (FEATURES.md §13): a pure tick→bar adapter edge layer and
+the microstructure feature family that runs on the bars it produces. Additive — the daily features,
+unchanged in formula, are untouched (a few fingerprints shift only because shared rolling-moment
+helpers moved to `_math.py`; the math is byte-identical, so versions stay at 1).
+
+### Added
+
+- **`sabia.adapters.build_bars`** — a pure, lazy `build_bars(ticks, BarSpec)` transform that
+  aggregates raw trade/quote ticks into intraday time / volume / dollar / tick bars, signing trades
+  (tick rule / Lee–Ready) at aggregation time. Deterministic on tied timestamps (stable sort +
+  tie-atomic bucketing) and point-in-time correct: each bar carries a `closed` marker so the
+  in-progress trailing bar is never mistaken for final.
+- **`microstructure` family** (MINUTE tier) — realized volatility (`rvar`, `bipower`, `jump_rj`,
+  `rsemivar_up`/`dn`, `signed_jump`, `rskew`, `rkurt`), order flow (`trade_imbalance`,
+  `sign_autocorr`, `vpin`), and liquidity (`quoted_spread`, `eff_spread`, `amihud_intraday`,
+  `kyle_lambda`, `depth_imbalance`). `book_imbalance` (L2) ships as an unregistered factory.
+- **`validate_ticks`** — the raw-tick input contract (non-decreasing timestamps allow ties,
+  positive price, non-negative size, uncrossed quotes), run in one pass.
+- **`QuoteRole` / `FlowRole` / `DepthRole`** input roles and **`BarSchema.trades()` / `.quotes()`**
+  constructors mapping the adapter's output columns (including the `closed` marker by default).
+- **`PATH_DEPENDENT`** recurrence is admitted (`EXPANDING` stays banned), with replay-based
+  windowed-recompute parity coverage.
+
+### Fixed
+
+- `bipower` / `jump_rj`: bipower variation now sums `window - 1` adjacent products over the same
+  `window` returns realized variance uses, so the jump statistic compares like for like.
+- `quoted_spread`: a crossed quote (`bid > ask`) now yields null as documented, instead of leaking a
+  negative spread into the rolling mean on the validation-off path.
+- `build_bars`: fails loudly with `SabiaValidationError` on a symbol-less feed instead of a raw
+  Polars error from inside the lazy plan.
+- `sabia.__version__` is synced with `pyproject.toml` and locked by a test (was stale at `0.3.0`).
+
 ## [0.4.0] - 2026-06-02
 
 Acting on an internal code review: correcting features whose formulas diverged from the FEATURES.md
