@@ -18,14 +18,19 @@ from sabia.schema import BarSchema
 from sabia.spec import ValidationMode
 from sabia.typing import (
     Adjustment,
+    DepthRole,
     FactorRole,
+    FlowRole,
     InputRole,
     PriceField,
     PriceRole,
+    QuoteField,
+    QuoteRole,
     VolumeRole,
 )
 
 if TYPE_CHECKING:
+    from sabia.adapters.bars import BarSpec
     from sabia.spec import BoundFeature
 
 _FLOAT_DTYPES = (pl.Float32, pl.Float64)
@@ -87,15 +92,17 @@ def validate(
 
     warnings: list[str] = []
     lf = frame.lazy()
-    names = lf.collect_schema().names()
+    sch = lf.collect_schema()
+    names = sch.names()
     is_panel = schema.symbol_col in names
 
-    _check_timestamp(lf, schema)
-    _check_required_roles(lf, schema, required_roles, names)
+    _check_timestamp(sch, schema.timestamp_col)
+    _check_required_roles(sch, schema, required_roles, names)
     if is_panel:
-        _check_symbol_dtype(lf, schema)
-    _check_ordering_and_uniqueness(lf, schema, is_panel)
+        _check_symbol_dtype(sch, schema)
+    _check_ordering_and_uniqueness(lf, schema, names)
     _check_ohlc_ordering(lf, schema)
+    _check_quote_ordering(lf, schema, names)
 
     _soft_check(
         _finalization_violation(lf, schema, names),
@@ -123,28 +130,32 @@ def _soft_check(violated: bool, message: str, mode: ValidationMode, warnings: li
         raise SabiaValidationError(message)
 
 
-def _schema_dtype(lf: pl.LazyFrame) -> pl.Schema:
-    return lf.collect_schema()
-
-
-def _check_timestamp(lf: pl.LazyFrame, schema: BarSchema) -> None:
-    sch = _schema_dtype(lf)
-    col = schema.timestamp_col
+def _check_timestamp(sch: pl.Schema, col: str, *, kind: str = "") -> None:
+    # Shared by the bar and raw-tick contracts; ``kind`` prefixes the messages ("tick ").
     if col not in sch.names():
-        raise SabiaValidationError(f"missing required column {col!r}")
+        raise SabiaValidationError(f"missing required {kind}column {col!r}")
     dtype = sch[col]
     if not isinstance(dtype, pl.Datetime):
-        raise SabiaValidationError(f"{col!r} must be Datetime, got {dtype}")
+        raise SabiaValidationError(f"{kind}{col!r} must be Datetime, got {dtype}")
     if dtype.time_zone != _UTC:
         raise SabiaValidationError(
-            f"{col!r} must be tz-aware UTC, got time_zone={dtype.time_zone!r}"
+            f"{kind}{col!r} must be tz-aware UTC, got time_zone={dtype.time_zone!r}"
         )
 
 
+def _timestamp_step(ts_col: str, symbol_col: str, names: list[str]) -> tuple[pl.Expr, str]:
+    # The bar-to-bar (tick-to-tick) timestamp step, per symbol on a panel (timestamps repeat across
+    # symbols) or global otherwise -- shared by the strict (bars) and non-strict (ticks) ordering
+    # checks so the two contracts cannot drift.
+    epoch = pl.col(ts_col).dt.epoch(time_unit="ns")
+    if symbol_col in names:
+        return epoch.diff().over(symbol_col), "within each symbol"
+    return epoch.diff(), "globally"
+
+
 def _check_required_roles(
-    lf: pl.LazyFrame, schema: BarSchema, required_roles: Iterable[InputRole], names: list[str]
+    sch: pl.Schema, schema: BarSchema, required_roles: Iterable[InputRole], names: list[str]
 ) -> None:
-    sch = _schema_dtype(lf)
     for role in required_roles:
         try:
             col = schema.column(role)
@@ -159,7 +170,11 @@ def _check_role_dtype(role: InputRole, dtype: pl.DataType, col: str) -> None:
     if isinstance(role, PriceRole | FactorRole):
         accepted: tuple[type[pl.DataType], ...] = _FLOAT_DTYPES
         kind = "float"
-    elif isinstance(role, VolumeRole):
+    elif isinstance(role, QuoteRole | DepthRole):
+        # A quote price (bid/ask/mid, or a price book side) is float; a quote/book size is numeric.
+        accepted = _FLOAT_DTYPES if role.is_price else _FLOAT_DTYPES + _INT_DTYPES
+        kind = "float" if role.is_price else "numeric"
+    elif isinstance(role, VolumeRole | FlowRole):
         accepted = _FLOAT_DTYPES + _INT_DTYPES
         kind = "numeric"
     else:  # CalendarRole: a session label column, string-like
@@ -171,22 +186,18 @@ def _check_role_dtype(role: InputRole, dtype: pl.DataType, col: str) -> None:
         )
 
 
-def _check_symbol_dtype(lf: pl.LazyFrame, schema: BarSchema) -> None:
-    sch = _schema_dtype(lf)
+def _check_symbol_dtype(sch: pl.Schema, schema: BarSchema) -> None:
     if sch[schema.symbol_col] not in _STRING_DTYPES:
         raise SabiaValidationError(
             f"{schema.symbol_col!r} must be string-like, got {sch[schema.symbol_col]}"
         )
 
 
-def _check_ordering_and_uniqueness(lf: pl.LazyFrame, schema: BarSchema, is_panel: bool) -> None:
-    # Strictly increasing timestamps == sorted AND unique in one check. On a panel the check is per
-    # symbol (timestamps repeat across symbols, so they are unique only within a symbol).
-    epoch = pl.col(schema.timestamp_col).dt.epoch(time_unit="ns")
-    step = epoch.diff().over(schema.symbol_col) if is_panel else epoch.diff()
+def _check_ordering_and_uniqueness(lf: pl.LazyFrame, schema: BarSchema, names: list[str]) -> None:
+    # Strictly increasing timestamps == sorted AND unique in one check (per symbol on a panel).
+    step, scope = _timestamp_step(schema.timestamp_col, schema.symbol_col, names)
     violation = lf.select((step <= 0).any().alias("bad")).collect().item()
     if violation:
-        scope = "within each symbol" if is_panel else "globally"
         raise SabiaValidationError(
             f"timestamps must be strictly increasing {scope} (sorted and unique)"
         )
@@ -225,6 +236,87 @@ def _resolve_ohlc(schema: BarSchema, adjustment: Adjustment) -> tuple[str, str, 
         return None
     o, h, low, c = (schema.column(role) for role in roles)
     return o, h, low, c
+
+
+def _check_quote_ordering(lf: pl.LazyFrame, schema: BarSchema, names: list[str]) -> None:
+    # Where a bid and ask are both declared AND present, require bid <= ask (a crossed book is bad
+    # data). Skip a basis that does not resolve both, or whose columns are not in the frame -- a
+    # schema may declare quote roles a given frame (e.g. a bars-only panel) simply does not carry.
+    for adjustment in Adjustment:
+        cols = _resolve_bid_ask(schema, adjustment)
+        if cols is None:
+            continue
+        bid, ask = cols
+        if bid not in names or ask not in names:
+            continue
+        bad = lf.select((pl.col(bid) > pl.col(ask)).any().alias("bad")).collect().item()
+        if bad:
+            raise SabiaValidationError(
+                f"quote ordering violated on @{adjustment.value}: require bid <= ask"
+            )
+
+
+def _resolve_bid_ask(schema: BarSchema, adjustment: Adjustment) -> tuple[str, str] | None:
+    bid_role = QuoteRole(QuoteField.BID, adjustment)
+    ask_role = QuoteRole(QuoteField.ASK, adjustment)
+    if not (schema.has(bid_role) and schema.has(ask_role)):
+        return None
+    return schema.column(bid_role), schema.column(ask_role)
+
+
+# --- raw tick contract (FEATURES.md 13) --------------------------------------------------------
+
+
+def validate_ticks(
+    ticks: pl.DataFrame | pl.LazyFrame,
+    spec: BarSpec,
+    *,
+    mode: ValidationMode = ValidationMode.STRICT,
+) -> list[str]:
+    """Check the raw-tick contract before aggregation; raise on violation (FEATURES.md 13).
+
+    Distinct from ``validate`` (the bar contract): raw ticks are NOT strictly increasing -- many
+    trades legally share a microsecond -- so per-symbol timestamps need only be **non-decreasing**.
+    Also requires tz-aware UTC timestamps, ``price > 0``, ``size >= 0``, and ``bid <= ask`` where
+    both quote columns are present. All are hard violations (schema/order/value), so STRICT and
+    RESEARCH both raise; OFF skips. Returns an empty list (no soft warnings apply to ticks).
+
+    All value checks run as one fused ``select`` -- a single pass over the (possibly file-backed)
+    tick frame, however many rules apply.
+    """
+    if mode is ValidationMode.OFF:
+        return []
+    lf = ticks.lazy()
+    sch = lf.collect_schema()
+    names = sch.names()
+    _check_timestamp(sch, spec.timestamp_col, kind="tick ")
+    for col, label in ((spec.price_col, "price"), (spec.size_col, "size")):
+        if col not in names:
+            raise SabiaValidationError(f"missing required tick column {col!r} ({label})")
+    # Ties allowed (simultaneous trades share a timestamp); a strictly negative step is a real
+    # out-of-order tick and a hard error.
+    step, scope = _timestamp_step(spec.timestamp_col, spec.symbol_col, names)
+    checks: list[tuple[pl.Expr, str]] = [
+        (step < 0, f"tick timestamps must be non-decreasing {scope}"),
+        (pl.col(spec.price_col) <= 0, f"tick price ({spec.price_col!r}) must be > 0"),
+        (pl.col(spec.size_col) < 0, f"tick size ({spec.size_col!r}) must be >= 0"),
+    ]
+    if spec.bid_col in names and spec.ask_col in names:
+        checks.append(
+            (
+                pl.col(spec.bid_col) > pl.col(spec.ask_col),
+                f"tick quote ordering violated: require {spec.bid_col!r} <= {spec.ask_col!r}",
+            )
+        )
+    flags = (
+        lf.select(expr.any().alias(f"bad_{i}") for i, (expr, _) in enumerate(checks))
+        .collect()
+        .row(0)
+    )
+    for flag, (_, message) in zip(flags, checks, strict=True):
+        if flag:
+            raise SabiaValidationError(message)
+    return []
 
 
 def _finalization_violation(lf: pl.LazyFrame, schema: BarSchema, names: list[str]) -> bool:
@@ -438,4 +530,4 @@ def _completeness(lf: pl.LazyFrame, schema: BarSchema) -> float:
     return float(full) / float(total) if total else 1.0
 
 
-__all__ = ["FrameAudit", "SabiaValidationError", "audit_frame", "validate"]
+__all__ = ["FrameAudit", "SabiaValidationError", "audit_frame", "validate", "validate_ticks"]

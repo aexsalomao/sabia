@@ -10,7 +10,7 @@ from math import log
 import polars as pl
 
 from sabia._expr import emit_after, grouped
-from sabia._math import log_return, safe_div, safe_sqrt
+from sabia._math import bar_return, log_return, rolling_corr, rolling_slope, safe_div
 from sabia._validate_params import int_at_least, positive_int
 from sabia.naming import naming
 from sabia.params import FrozenParams
@@ -23,11 +23,6 @@ from sabia.typing import CLOSE_TR, PriceRole
 _LN2 = log(2.0)
 _BANDS = (Horizon.SHORT, Horizon.MEDIUM)
 _CLM = Reference("Campbell, Lo & MacKinlay", 1997)
-
-
-def _log_return(s: BarSchema, close: PriceRole) -> pl.Expr:
-    c = pl.col(s.column(close))
-    return log_return(c, c.shift(1))
 
 
 def zscore_close(*, window: int = 21, close: PriceRole = CLOSE_TR) -> BoundFeature:
@@ -75,9 +70,9 @@ def autocorr(*, lag: int = 1, window: int = 21, close: PriceRole = CLOSE_TR) -> 
     name = naming("autocorr", lag, window)
 
     def build(s: BarSchema) -> pl.Expr:
-        r = _log_return(s, close)
+        r = bar_return(s.column(close))
         r_lag = r.shift(lag)
-        value = _rolling_corr(r, r_lag, window)
+        value = rolling_corr(r, r_lag, window)
         return grouped(value, s.symbol_col).alias(name)
 
     return bind_feature(
@@ -178,7 +173,7 @@ def half_life(*, window: int = 60, close: PriceRole = CLOSE_TR) -> BoundFeature:
         c = pl.col(s.column(close))
         level = c.shift(1)
         change = c.diff()
-        beta = _rolling_slope(level, change, window)
+        beta = rolling_slope(level, change, window)
         reverting = (beta > -1) & (beta < 0)
         value = pl.when(reverting).then(-_LN2 / (1 + beta).log()).otherwise(None)
         return grouped(value, s.symbol_col).alias(name)
@@ -199,25 +194,6 @@ def half_life(*, window: int = 60, close: PriceRole = CLOSE_TR) -> BoundFeature:
         citation=Citation(formula=Reference("Ornstein & Uhlenbeck", 1930)),
         params=FrozenParams(window=window),
     )
-
-
-def _rolling_slope(x: pl.Expr, y: pl.Expr, window: int) -> pl.Expr:
-    # OLS slope of y on x over the window, from population moments: cov(x, y) / var(x).
-    mean_x = x.rolling_mean(window, min_samples=window)
-    mean_y = y.rolling_mean(window, min_samples=window)
-    mean_xy = (x * y).rolling_mean(window, min_samples=window)
-    mean_xx = (x * x).rolling_mean(window, min_samples=window)
-    return safe_div(mean_xy - mean_x * mean_y, mean_xx - mean_x * mean_x)
-
-
-def _rolling_corr(x: pl.Expr, y: pl.Expr, window: int) -> pl.Expr:
-    # Pearson correlation over the window, from population moments: cov / (std_x * std_y).
-    mean_x = x.rolling_mean(window, min_samples=window)
-    mean_y = y.rolling_mean(window, min_samples=window)
-    cov = (x * y).rolling_mean(window, min_samples=window) - mean_x * mean_y
-    var_x = (x * x).rolling_mean(window, min_samples=window) - mean_x * mean_x
-    var_y = (y * y).rolling_mean(window, min_samples=window) - mean_y * mean_y
-    return safe_div(cov, safe_sqrt(var_x * var_y))
 
 
 FEATURES: tuple[BoundFeature, ...] = (

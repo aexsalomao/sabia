@@ -25,9 +25,11 @@ from collections.abc import Sequence
 import polars as pl
 
 from sabia import (
+    adapters,
     cross_sectional,
     distribution,
     mean_reversion,
+    microstructure,
     momentum,
     normalize,
     recipes,
@@ -75,17 +77,29 @@ from sabia.toolkit import (
 from sabia.typing import (
     Adjustment,
     CalendarRole,
+    DepthRole,
     FactorRole,
     FeatureRef,
+    FlowField,
+    FlowRole,
     InputRole,
     PriceField,
     PriceRole,
+    QuoteField,
+    QuoteRole,
     VolumeField,
     VolumeRole,
 )
-from sabia.validate import FrameAudit, SabiaValidationError, audit_frame, validate
+from sabia.validate import (
+    FrameAudit,
+    SabiaValidationError,
+    audit_frame,
+    validate,
+    validate_ticks,
+)
 
-__version__ = "0.3.0"
+# Kept in sync with pyproject.toml by tests/test_invariants.py::test_version_matches_pyproject.
+__version__ = "0.4.0"
 
 
 def compute(
@@ -194,6 +208,7 @@ __all__ = [
     "Citation",
     "Cost",
     "DataTier",
+    "DepthRole",
     "Evidence",
     "FactorRole",
     "Family",
@@ -201,6 +216,8 @@ __all__ = [
     "FeatureSet",
     "FeatureSetManifest",
     "FeatureSpec",
+    "FlowField",
+    "FlowRole",
     "FrameAudit",
     "FrozenParams",
     "FrozenRegistryError",
@@ -209,6 +226,8 @@ __all__ = [
     "NullPolicy",
     "PriceField",
     "PriceRole",
+    "QuoteField",
+    "QuoteRole",
     "Recurrence",
     "Reference",
     "Registry",
@@ -221,6 +240,7 @@ __all__ = [
     "VolumeField",
     "VolumeRole",
     "__version__",
+    "adapters",
     "assert_unique",
     "audit_frame",
     "bind_feature",
@@ -233,6 +253,7 @@ __all__ = [
     "get_calendar",
     "max_min_history",
     "mean_reversion",
+    "microstructure",
     "momentum",
     "naming",
     "normalize",
@@ -243,6 +264,7 @@ __all__ = [
     "seasonality",
     "trend",
     "validate",
+    "validate_ticks",
     "volatility",
     "volume",
 ]

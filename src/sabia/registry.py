@@ -15,9 +15,9 @@ from sabia.params import FrozenParams
 from sabia.references import Citation
 from sabia.schema import BarSchema
 from sabia.spec import (
+    ALLOWED_RECURRENCES,
     NAME_PATTERN,
     REQUIRE_FULL_WINDOW,
-    V1_RECURRENCES,
     BoundFeature,
     Cost,
     DataTier,
@@ -44,6 +44,7 @@ _FAMILY_MODULES: tuple[str, ...] = (
     "sabia.mean_reversion",
     "sabia.seasonality",
     "sabia.cross_sectional",
+    "sabia.microstructure",
 )
 
 _NAME_RE = re.compile(NAME_PATTERN)
@@ -83,10 +84,10 @@ class Registry:
             raise ValueError(
                 f"feature name {spec.name!r} is not snake_case (pattern {NAME_PATTERN})"
             )
-        if spec.recurrence not in V1_RECURRENCES:
+        if spec.recurrence not in ALLOWED_RECURRENCES:
             raise ValueError(
-                f"feature {spec.name!r} has recurrence {spec.recurrence.value}, banned in v1 "
-                f"(only {sorted(r.value for r in V1_RECURRENCES)})"
+                f"feature {spec.name!r} has recurrence {spec.recurrence.value}, not admitted "
+                f"(only {sorted(r.value for r in ALLOWED_RECURRENCES)})"
             )
         key = (spec.name, spec.version)
         if key in self._by_key:

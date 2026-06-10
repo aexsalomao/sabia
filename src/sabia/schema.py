@@ -10,12 +10,21 @@ from types import MappingProxyType
 
 from sabia.typing import (
     Adjustment,
+    FlowField,
+    FlowRole,
     InputRole,
     PriceField,
     PriceRole,
+    QuoteField,
+    QuoteRole,
     VolumeField,
     VolumeRole,
 )
+
+# The canonical bars-closed marker column (FEATURES.md 8.3). The tick->bar adapter emits it and
+# ``trades()``/``quotes()`` map it by default, so validate()'s finalization gate is armed out of
+# the box on adapter output; on frames that simply lack the column the gate is skipped.
+DEFAULT_CLOSED_COLUMN = "closed"
 
 
 @dataclass(frozen=True, slots=True)
@@ -86,6 +95,163 @@ class BarSchema:
             timestamp_col=timestamp_col,
         )
 
+    @staticmethod
+    def _raw_trade_roles(
+        *,
+        open: str,
+        high: str,
+        low: str,
+        close: str,
+        volume: str,
+        vwap: str | None,
+        trade_count: str | None,
+        signed_volume: str | None,
+        buy_volume: str | None,
+        sell_volume: str | None,
+        dollar_volume: str | None,
+        signed_dollar: str | None,
+    ) -> dict[InputRole, str]:
+        # The shared raw-basis OHLCV + optional flow role map for trades()/quotes(). Intraday micro
+        # works on the RAW (traded) basis -- one session has no split/dividend boundary. Optional
+        # columns are mapped only when supplied (``is not None``); an unmapped role that a feature
+        # needs then fails loudly at resolution (FEATURES.md 4.2), never silently.
+        roles: dict[InputRole, str] = {
+            PriceRole(PriceField.OPEN, Adjustment.RAW): open,
+            PriceRole(PriceField.HIGH, Adjustment.RAW): high,
+            PriceRole(PriceField.LOW, Adjustment.RAW): low,
+            PriceRole(PriceField.CLOSE, Adjustment.RAW): close,
+            VolumeRole(VolumeField.VOLUME, Adjustment.RAW): volume,
+        }
+        optional: dict[InputRole, str | None] = {
+            PriceRole(PriceField.VWAP, Adjustment.RAW): vwap,
+            VolumeRole(VolumeField.DOLLAR_VOLUME, Adjustment.RAW): dollar_volume,
+            FlowRole(FlowField.TRADE_COUNT, Adjustment.RAW): trade_count,
+            FlowRole(FlowField.SIGNED_VOLUME, Adjustment.RAW): signed_volume,
+            FlowRole(FlowField.BUY_VOLUME, Adjustment.RAW): buy_volume,
+            FlowRole(FlowField.SELL_VOLUME, Adjustment.RAW): sell_volume,
+            FlowRole(FlowField.SIGNED_DOLLAR, Adjustment.RAW): signed_dollar,
+        }
+        roles.update({role: col for role, col in optional.items() if col is not None})
+        return roles
+
+    @classmethod
+    def trades(
+        cls,
+        *,
+        open: str = "open",
+        high: str = "high",
+        low: str = "low",
+        close: str = "close",
+        volume: str = "volume",
+        vwap: str | None = None,
+        trade_count: str | None = None,
+        signed_volume: str | None = None,
+        buy_volume: str | None = None,
+        sell_volume: str | None = None,
+        dollar_volume: str | None = None,
+        signed_dollar: str | None = None,
+        symbol_col: str = "symbol",
+        timestamp_col: str = "timestamp",
+        closed_col: str | None = DEFAULT_CLOSED_COLUMN,
+        calendar: str = "UTC",
+    ) -> BarSchema:
+        """Build a schema for intraday trade bars -- OHLCV on the raw basis + optional flow columns.
+
+        The common output shape of the ``sabia.adapters`` tick->bar layer (FEATURES.md 13): OHLCV
+        plus the adapter-derived flow aggregates (``signed_volume``, ``buy_volume`` ...). Map only
+        the optional columns your bars actually carry; a microstructure feature that needs an
+        unmapped role fails loudly at resolution rather than reading the wrong column.
+
+        ``closed_col`` defaults to the adapter's ``closed`` marker, arming validate()'s
+        finalization gate on adapter output (the in-progress trailing bar is rejected until
+        filtered); frames without the column skip the gate as before.
+
+        These are **raw** (traded) prices -- correct within one session, but they must not be mixed
+        into a daily cross-asset panel that expects the @split / @tr bases (cf. ``ohlcv``).
+        """
+        return cls(
+            roles=cls._raw_trade_roles(
+                open=open,
+                high=high,
+                low=low,
+                close=close,
+                volume=volume,
+                vwap=vwap,
+                trade_count=trade_count,
+                signed_volume=signed_volume,
+                buy_volume=buy_volume,
+                sell_volume=sell_volume,
+                dollar_volume=dollar_volume,
+                signed_dollar=signed_dollar,
+            ),
+            closed_col=closed_col,
+            calendar=calendar,
+            symbol_col=symbol_col,
+            timestamp_col=timestamp_col,
+        )
+
+    @classmethod
+    def quotes(
+        cls,
+        *,
+        bid: str = "bid",
+        ask: str = "ask",
+        bid_size: str | None = None,
+        ask_size: str | None = None,
+        mid: str | None = None,
+        open: str = "open",
+        high: str = "high",
+        low: str = "low",
+        close: str = "close",
+        volume: str = "volume",
+        vwap: str | None = None,
+        trade_count: str | None = None,
+        signed_volume: str | None = None,
+        buy_volume: str | None = None,
+        sell_volume: str | None = None,
+        dollar_volume: str | None = None,
+        signed_dollar: str | None = None,
+        symbol_col: str = "symbol",
+        timestamp_col: str = "timestamp",
+        closed_col: str | None = DEFAULT_CLOSED_COLUMN,
+        calendar: str = "UTC",
+    ) -> BarSchema:
+        """Build a schema for intraday trade bars enriched with L1 quotes (FEATURES.md 13, tier L1).
+
+        ``trades`` plus the best bid/ask (and optional sizes / mid). ``bid``/``ask`` map by default;
+        the sizes and mid are mapped only when supplied. Quote prices are raw, like trade prices.
+        ``closed_col`` defaults to the adapter's ``closed`` marker (cf. ``trades``).
+        """
+        roles = cls._raw_trade_roles(
+            open=open,
+            high=high,
+            low=low,
+            close=close,
+            volume=volume,
+            vwap=vwap,
+            trade_count=trade_count,
+            signed_volume=signed_volume,
+            buy_volume=buy_volume,
+            sell_volume=sell_volume,
+            dollar_volume=dollar_volume,
+            signed_dollar=signed_dollar,
+        )
+        roles[QuoteRole(QuoteField.BID, Adjustment.RAW)] = bid
+        roles[QuoteRole(QuoteField.ASK, Adjustment.RAW)] = ask
+        optional_quotes: dict[InputRole, str | None] = {
+            QuoteRole(QuoteField.BID_SIZE, Adjustment.RAW): bid_size,
+            QuoteRole(QuoteField.ASK_SIZE, Adjustment.RAW): ask_size,
+            QuoteRole(QuoteField.MID, Adjustment.RAW): mid,
+        }
+        roles.update({role: col for role, col in optional_quotes.items() if col is not None})
+        return cls(
+            roles=roles,
+            closed_col=closed_col,
+            calendar=calendar,
+            symbol_col=symbol_col,
+            timestamp_col=timestamp_col,
+        )
+
     def column(self, role: InputRole) -> str:
         """Physical column backing ``role``; raises a precise ``KeyError`` if undeclared."""
         try:
@@ -100,4 +266,4 @@ class BarSchema:
         return role in self.roles
 
 
-__all__ = ["BarSchema"]
+__all__ = ["DEFAULT_CLOSED_COLUMN", "BarSchema"]

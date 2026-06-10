@@ -5,9 +5,13 @@ from datetime import UTC, datetime
 import polars as pl
 import pytest
 
+from sabia.adapters.bars import BarKind, BarSpec
 from sabia.schema import BarSchema
 from sabia.spec import ValidationMode
 from sabia.typing import (
+    ASK_RAW,
+    BID_RAW,
+    CLOSE_RAW,
     CLOSE_SPLIT,
     CLOSE_TR,
     HIGH_SPLIT,
@@ -16,7 +20,7 @@ from sabia.typing import (
     VOLUME_SPLIT,
     VWAP_SPLIT,
 )
-from sabia.validate import SabiaValidationError, validate
+from sabia.validate import SabiaValidationError, validate, validate_ticks
 
 # A schema over the single-series OHLCV columns. VWAP_SPLIT maps to an absent column on purpose, to
 # exercise the "role maps to an absent column" path.
@@ -86,6 +90,93 @@ def test_naive_timestamp_rejected(single_series: pl.DataFrame) -> None:
     naive = single_series.with_columns(pl.col("timestamp").dt.replace_time_zone(None))
     with pytest.raises(SabiaValidationError, match="tz-aware UTC"):
         validate(naive, schema=OHLCV_SCHEMA)
+
+
+# --- quote ordering on the bar contract (FEATURES.md 13) ---------------------------------------
+
+_QUOTE_BAR_SCHEMA = BarSchema(roles={CLOSE_RAW: "close", BID_RAW: "bid", ASK_RAW: "ask"})
+
+
+def _quote_bars(bids: list[float], asks: list[float]) -> pl.DataFrame:
+    n = len(bids)
+    return pl.DataFrame(
+        {
+            "timestamp": _ts(*range(n)),
+            "close": [(b + a) / 2 for b, a in zip(bids, asks, strict=True)],
+            "bid": bids,
+            "ask": asks,
+        }
+    )
+
+
+def test_crossed_book_rejected_on_bar_contract() -> None:
+    with pytest.raises(SabiaValidationError, match="bid <= ask"):
+        validate(_quote_bars([10.1, 10.2], [10.0, 10.3]), schema=_QUOTE_BAR_SCHEMA)
+
+
+def test_uncrossed_book_passes() -> None:
+    validate(_quote_bars([9.9, 10.1], [10.0, 10.2]), schema=_QUOTE_BAR_SCHEMA)
+
+
+# --- raw tick contract (validate_ticks, FEATURES.md 13) ----------------------------------------
+
+_TICK_SPEC = BarSpec(kind=BarKind.VOLUME, threshold=100.0)
+
+
+def _tick_frame(
+    times: list[int], prices: list[float], sizes: list[float], *, symbol: str = "AAA"
+) -> pl.DataFrame:
+    return pl.DataFrame(
+        {
+            "timestamp": [datetime(2024, 1, 2, 14, 30, s, tzinfo=UTC) for s in times],
+            "symbol": [symbol] * len(times),
+            "price": prices,
+            "size": sizes,
+        }
+    )
+
+
+def test_valid_ticks_pass() -> None:
+    ticks = _tick_frame([0, 1, 2], [10.0, 10.1, 10.0], [5.0, 3.0, 2.0])
+    assert validate_ticks(ticks, _TICK_SPEC) == []
+
+
+def test_equal_microsecond_ticks_accepted() -> None:
+    # The key bar-vs-tick difference: many trades legally share one timestamp (non-decreasing, not
+    # strictly increasing). A bar frame would reject this; a tick frame must not.
+    ticks = _tick_frame([1, 1, 1], [10.0, 10.1, 10.2], [5.0, 3.0, 2.0])
+    assert validate_ticks(ticks, _TICK_SPEC) == []
+
+
+def test_out_of_order_ticks_rejected() -> None:
+    ticks = _tick_frame([2, 1, 3], [10.0, 10.1, 10.2], [5.0, 3.0, 2.0])
+    with pytest.raises(SabiaValidationError, match="non-decreasing"):
+        validate_ticks(ticks, _TICK_SPEC)
+
+
+def test_non_positive_price_rejected() -> None:
+    ticks = _tick_frame([0, 1], [10.0, 0.0], [5.0, 3.0])
+    with pytest.raises(SabiaValidationError, match="price"):
+        validate_ticks(ticks, _TICK_SPEC)
+
+
+def test_negative_size_rejected() -> None:
+    ticks = _tick_frame([0, 1], [10.0, 10.1], [5.0, -1.0])
+    with pytest.raises(SabiaValidationError, match="size"):
+        validate_ticks(ticks, _TICK_SPEC)
+
+
+def test_crossed_tick_book_rejected() -> None:
+    ticks = _tick_frame([0, 1], [10.0, 10.1], [5.0, 3.0]).with_columns(
+        bid=pl.Series([10.0, 10.3]), ask=pl.Series([10.2, 10.1])
+    )
+    with pytest.raises(SabiaValidationError, match="bid"):
+        validate_ticks(ticks, _TICK_SPEC)
+
+
+def test_off_mode_skips_tick_validation() -> None:
+    bad = _tick_frame([2, 1], [10.0, -5.0], [5.0, -1.0])
+    assert validate_ticks(bad, _TICK_SPEC, mode=ValidationMode.OFF) == []
 
 
 def test_non_utc_timestamp_rejected(single_series: pl.DataFrame) -> None:

@@ -81,6 +81,24 @@ def make_panel(
     return pl.concat(frames).sort("symbol", "timestamp")
 
 
+def make_trades(n: int = 5_000, *, seed: int = 0, symbol: str = "AAA") -> pl.DataFrame:
+    """A stream of ``n`` raw trade ticks (price + size) for one symbol -- the adapter's input.
+
+    Ticks arrive at irregular sub-second times (many can share a microsecond, as on a real tape) and
+    follow a random walk in price. This is what ``sabia.adapters.build_bars`` aggregates into the
+    intraday bars the microstructure family consumes. Deterministic; no network.
+    """
+    rng = np.random.default_rng(seed)
+    # Irregular arrivals: cumulative integer microsecond gaps (0 gaps -> simultaneous ticks).
+    gaps_us = rng.integers(0, 500_000, n).cumsum()
+    timestamps = [_START + timedelta(microseconds=int(g)) for g in gaps_us]
+    price = 100.0 * np.exp(np.cumsum(rng.normal(0.0, 0.0002, n)))
+    size = rng.integers(1, 500, n).astype(np.float64)
+    return pl.DataFrame(
+        {"timestamp": timestamps, "symbol": [symbol] * n, "price": price, "size": size}
+    )
+
+
 def default_schema() -> BarSchema:
     """A BarSchema mapping every role the shipped features need onto our physical columns.
 

@@ -1,4 +1,4 @@
-"""BarSchema.ohlcv convenience constructor (FEATURES.md 2.2)."""
+"""BarSchema convenience constructors: ohlcv (2.2) and trades/quotes (FEATURES.md 13)."""
 
 from datetime import UTC, datetime, timedelta
 
@@ -7,13 +7,25 @@ import polars as pl
 import sabia
 from sabia.schema import BarSchema
 from sabia.typing import (
+    ASK_RAW,
+    ASK_SIZE_RAW,
+    BID_RAW,
+    BID_SIZE_RAW,
+    CLOSE_RAW,
     CLOSE_SPLIT,
     CLOSE_TR,
     HIGH_SPLIT,
     LOW_SPLIT,
+    MID_RAW,
     OPEN_SPLIT,
     OPEN_TR,
+    SIGNED_VOLUME_RAW,
+    TRADE_COUNT_RAW,
+    VOLUME_RAW,
     VOLUME_SPLIT,
+    Adjustment,
+    PriceField,
+    PriceRole,
 )
 
 
@@ -66,3 +78,56 @@ def test_ohlcv_resolves_default_features_end_to_end() -> None:
     )
     assert out.columns == ["symbol", "timestamp", "rsi_14", "vol_yz_5"]
     assert out.height == n
+
+
+# --- trades() / quotes() (intraday microstructure tier, FEATURES.md 13) ------------------------
+
+
+def test_trades_maps_raw_ohlcv_and_skips_unsupplied_optionals() -> None:
+    s = BarSchema.trades()
+    # OHLCV resolve on the RAW basis (not split, unlike ohlcv()).
+    assert s.column(PriceRole(PriceField.OPEN, Adjustment.RAW)) == "open"
+    assert s.column(CLOSE_RAW) == "close"
+    assert s.column(VOLUME_RAW) == "volume"
+    # Optional flow columns are absent until supplied -- the role simply does not resolve.
+    assert not s.has(SIGNED_VOLUME_RAW)
+    assert not s.has(TRADE_COUNT_RAW)
+
+
+def test_trades_maps_supplied_flow_columns() -> None:
+    s = BarSchema.trades(
+        close="px", signed_volume="sv", buy_volume="bv", sell_volume="xv", trade_count="n"
+    )
+    assert s.column(CLOSE_RAW) == "px"
+    assert s.column(SIGNED_VOLUME_RAW) == "sv"
+    assert s.column(TRADE_COUNT_RAW) == "n"
+
+
+def test_quotes_adds_l1_on_top_of_trades() -> None:
+    s = BarSchema.quotes(
+        bid="b", ask="a", bid_size="bs", ask_size="as", mid="m", signed_volume="sv"
+    )
+    assert s.column(BID_RAW) == "b"
+    assert s.column(ASK_RAW) == "a"
+    assert s.column(BID_SIZE_RAW) == "bs"
+    assert s.column(ASK_SIZE_RAW) == "as"
+    assert s.column(MID_RAW) == "m"
+    # the trade-side roles still resolve
+    assert s.column(CLOSE_RAW) == "close"
+    assert s.column(SIGNED_VOLUME_RAW) == "sv"
+
+
+def test_quotes_skips_unsupplied_sizes_and_mid() -> None:
+    s = BarSchema.quotes()
+    assert s.column(BID_RAW) == "bid"
+    assert s.column(ASK_RAW) == "ask"
+    assert not s.has(BID_SIZE_RAW)
+    assert not s.has(MID_RAW)
+
+
+def test_trades_passes_through_identity_and_calendar() -> None:
+    s = BarSchema.trades(symbol_col="sym", timestamp_col="ts", closed_col="closed", calendar="XNYS")
+    assert s.symbol_col == "sym"
+    assert s.timestamp_col == "ts"
+    assert s.closed_col == "closed"
+    assert s.calendar == "XNYS"

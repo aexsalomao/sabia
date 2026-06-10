@@ -117,11 +117,30 @@ A feature is **done** only when all of these hold:
 ## Out of scope for v1 — do NOT build
 
 - Any online/streaming engine or `OnlineFeature` protocol. The §7 contract is **metadata + tests only**.
-- The `microstructure` family module (it exists in the `Family` enum; the module ships later).
 - Pattern recognition, Fibonacci, Elliott, Ichimoku.
 - Signals, portfolio construction, backtesting, risk metrics — those are `quale` / `ruin`.
 - `pandas`, in any form.
 - A dependency on `quant_features` — the arrow points the other way (it consumes sabia).
+
+---
+
+## Shipped beyond v1 — intraday microstructure
+
+The `microstructure` family and the tick→bar edge layer have shipped (post-v1):
+
+- **`sabia.adapters`** — a pure `build_bars(ticks, BarSpec)` transform aggregates raw trade/quote
+  ticks into intraday time / volume / dollar / tick bars, signing trades (tick rule / Lee-Ready) at
+  aggregation time. `validate_ticks` is the raw-tick contract (non-decreasing timestamps allow ties).
+- **`microstructure.py`** — realized-vol (`rvar`, `bipower`, `jump_rj`, `rsemivar_up/dn`,
+  `signed_jump`, `rskew`, `rkurt`), order flow (`trade_imbalance`, `sign_autocorr`, `vpin`),
+  liquidity (`quoted_spread`, `eff_spread`, `amihud_intraday`, `kyle_lambda`, `depth_imbalance`), all
+  `DataTier.MINUTE`. `book_imbalance` (L2 `DepthRole`) ships as an unregistered factory (the default
+  tiers carry no per-level depth).
+- **Roles**: `QuoteRole` (L1) / `FlowRole` (adapter-derived) / `DepthRole` (L2) extend `InputRole`;
+  `BarSchema.trades()` / `.quotes()` map them.
+- **`PATH_DEPENDENT`** recurrence is admitted (`ALLOWED_RECURRENCES`); `EXPANDING` stays banned. No
+  path-dependent feature ships yet (VPIN is FINITE on volume buckets) — CUSUM/SAR are the next
+  candidates, with replay-based parity.
 
 ---
 

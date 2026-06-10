@@ -18,6 +18,7 @@ def _feature(
     version: int = 1,
     band: Horizon = Horizon.MEDIUM,
     tier: DataTier = DataTier.DAILY,
+    recurrence: Recurrence = Recurrence.FINITE,
 ) -> BoundFeature:
     def build(s: BarSchema) -> pl.Expr:
         return pl.col(s.column(CLOSE_TR)).alias(name)
@@ -30,7 +31,7 @@ def _feature(
         native_band=(band,),
         lookback=14,
         min_history=14,
-        recurrence=Recurrence.FINITE,
+        recurrence=recurrence,
         effective_warmup=14,
         cost_class=Cost.LINEAR,
         data_tier=tier,
@@ -69,6 +70,19 @@ def test_duplicate_name_version_rejected() -> None:
 def test_non_snake_case_name_rejected() -> None:
     with pytest.raises(ValueError, match="snake_case"):
         Registry([_feature("RSI14")])
+
+
+def test_path_dependent_recurrence_is_admitted() -> None:
+    # PATH_DEPENDENT is enabled for the microstructure family (VPIN buckets, CUSUM); replay-based
+    # parity, not fixed-window (FEATURES.md 8.2, 13). It must register without error.
+    reg = Registry([_feature("vpin_50", recurrence=Recurrence.PATH_DEPENDENT)])
+    assert reg.get("vpin_50").spec.recurrence is Recurrence.PATH_DEPENDENT
+
+
+def test_expanding_recurrence_still_rejected() -> None:
+    # EXPANDING (unbounded cumulative) has no windowed-recompute guarantee and stays banned.
+    with pytest.raises(ValueError, match="recurrence"):
+        Registry([_feature("obv_raw", recurrence=Recurrence.EXPANDING)])
 
 
 def test_unknown_name_raises_keyerror() -> None:

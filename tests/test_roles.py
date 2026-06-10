@@ -14,14 +14,25 @@ from synthetic import SCHEMA, make_panel
 
 import sabia
 from sabia._math import log_return
+from sabia.naming import naming
 from sabia.schema import BarSchema
 from sabia.typing import (
+    ASK_RAW,
+    BID_RAW,
+    BID_SIZE_RAW,
     CLOSE_SPLIT,
     CLOSE_TR,
     HIGH_SPLIT,
     LOW_SPLIT,
     OPEN_SPLIT,
+    SIGNED_VOLUME_RAW,
     VOLUME_SPLIT,
+    Adjustment,
+    DepthRole,
+    FlowField,
+    FlowRole,
+    QuoteField,
+    QuoteRole,
 )
 from sabia.validate import SabiaValidationError
 
@@ -82,6 +93,57 @@ def test_unmapped_role_raises_precise_keyerror() -> None:
     schema = BarSchema(roles={CLOSE_SPLIT: "c_split"})
     with pytest.raises(KeyError, match="close@tr"):
         sabia.returns.ret_log(period=1).expr(schema)
+
+
+# --- intraday microstructure roles (FEATURES.md 13) --------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("role", "rendered"),
+    [
+        (BID_RAW, "bid@raw"),
+        (ASK_RAW, "ask@raw"),
+        (BID_SIZE_RAW, "bid_size@raw"),
+        (SIGNED_VOLUME_RAW, "signed_volume@raw"),
+        (DepthRole(QuoteField.BID, 1, Adjustment.RAW), "bid_l1@raw"),
+        (DepthRole(QuoteField.ASK_SIZE, 0, Adjustment.RAW), "ask_size_l0@raw"),
+    ],
+    ids=["bid", "ask", "bid_size", "signed_vol", "depth_bid_l1", "depth_ask_size_l0"],
+)
+def test_micro_role_renders_unique_identity(role: object, rendered: str) -> None:
+    # Each role's __str__ is its fingerprint identity (spec.feature_fingerprint folds str(role)).
+    assert str(role) == rendered
+
+
+def test_quote_role_is_price_classifies_price_vs_size() -> None:
+    assert QuoteRole(QuoteField.BID, Adjustment.RAW).is_price
+    assert QuoteRole(QuoteField.MID, Adjustment.RAW).is_price
+    assert not QuoteRole(QuoteField.BID_SIZE, Adjustment.RAW).is_price
+
+
+def test_micro_roles_are_hashable_and_distinct_in_a_set() -> None:
+    # Frozen + hashable so they sit in frozenset[InputRole] and fold order-independently.
+    roles = {BID_RAW, ASK_RAW, BID_RAW, SIGNED_VOLUME_RAW}
+    assert len(roles) == 3
+    assert BID_RAW != ASK_RAW
+    assert FlowRole(FlowField.SIGNED_VOLUME, Adjustment.RAW) == SIGNED_VOLUME_RAW
+
+
+def test_depth_role_rejects_mid_side_and_negative_level() -> None:
+    with pytest.raises(ValueError, match="side"):
+        DepthRole(QuoteField.MID, 0, Adjustment.RAW)
+    with pytest.raises(ValueError, match="level"):
+        DepthRole(QuoteField.BID, -1, Adjustment.RAW)
+
+
+def test_naming_emits_adjustment_token_for_micro_roles() -> None:
+    # Rule A: a quote role whose adjustment deviates from the default emits the token.
+    split_bid = QuoteRole(QuoteField.BID, Adjustment.SPLIT)
+    assert (
+        naming("qspread", 20, role=split_bid, default_adjustment=Adjustment.RAW)
+        == "qspread_split_20"
+    )
+    assert naming("qspread", 20, role=BID_RAW, default_adjustment=Adjustment.RAW) == "qspread_20"
 
 
 # --- universe enforcement (#6) -----------------------------------------------------------------

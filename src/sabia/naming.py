@@ -9,7 +9,18 @@ import re
 from collections.abc import Iterable
 
 from sabia.spec import NAME_PATTERN
-from sabia.typing import Adjustment, InputRole, PriceRole, VolumeRole
+from sabia.typing import (
+    Adjustment,
+    DepthRole,
+    FlowRole,
+    InputRole,
+    PriceRole,
+    QuoteRole,
+    VolumeRole,
+)
+
+# Roles that carry an adjustment basis, so Rule A can emit a deviation token (FEATURES.md 4.3).
+_ADJUSTED_ROLES = (PriceRole, VolumeRole, QuoteRole, FlowRole, DepthRole)
 
 _NAME_RE = re.compile(NAME_PATTERN)
 
@@ -33,7 +44,7 @@ def naming(
     if suffix is not None:
         parts.append(suffix)
     if (
-        isinstance(role, PriceRole | VolumeRole)
+        isinstance(role, _ADJUSTED_ROLES)
         and default_adjustment is not None
         and role.adjustment is not default_adjustment
     ):

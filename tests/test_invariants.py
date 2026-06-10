@@ -19,19 +19,33 @@ from conftest import assert_series_close
 from hypothesis import given, settings
 from hypothesis import strategies as st
 from synthetic import (
+    ASK,
+    ASK_SIZE,
+    ASK_SIZE_L,
+    BID,
+    BID_SIZE,
+    BID_SIZE_L,
+    BUY_VOLUME,
     CLOSE,
+    DEPTH_LEVELS,
     DOLLAR_VOLUME,
     HIGH,
     LOW,
+    MID,
     OPEN,
     SCHEMA,
+    SELL_VOLUME,
+    SIGNED_DOLLAR,
+    SIGNED_VOLUME,
     SYMBOL,
+    TRADE_COUNT,
     VOLUME,
     VWAP,
     append_future,
 )
 
 import sabia
+from sabia.microstructure import book_imbalance
 from sabia.registry import BoundFeature, Registry, evaluate
 from sabia.spec import (
     DEFAULT_FLOAT_TOLERANCE,
@@ -41,13 +55,40 @@ from sabia.spec import (
 )
 
 _FEATURES = Registry.default().features()
-_TS = [f for f in _FEATURES if f.spec.family is not Family.CROSS_SECTIONAL]
+# Off-registry factories (book_imbalance needs L2 depth columns the default tiers lack) still run
+# through every cross-cutting gate below: registration controls shipping, never test coverage.
+_OFF_REGISTRY = (book_imbalance(levels=DEPTH_LEVELS),)
+_TS = [f for f in _FEATURES if f.spec.family is not Family.CROSS_SECTIONAL] + list(_OFF_REGISTRY)
 _XS = [f for f in _FEATURES if f.spec.family is Family.CROSS_SECTIONAL]
 
 _TS_IDS = [f.spec.name for f in _TS]
 _XS_IDS = [f.spec.name for f in _XS]
 
-_VALUE_COLUMNS = {OPEN, HIGH, LOW, CLOSE, VOLUME, VWAP, DOLLAR_VOLUME}
+# For PATH_DEPENDENT parity: replay over every bar up to a cut this far from the end of the series
+# must reproduce the full-history value at the cut (FEATURES.md 8.2 -- replay-based parity).
+_REPLAY_TRUNCATION = 5
+
+_VALUE_COLUMNS = {
+    OPEN,
+    HIGH,
+    LOW,
+    CLOSE,
+    VOLUME,
+    VWAP,
+    DOLLAR_VOLUME,
+    BID,
+    ASK,
+    MID,
+    BID_SIZE,
+    ASK_SIZE,
+    SIGNED_VOLUME,
+    BUY_VOLUME,
+    SELL_VOLUME,
+    SIGNED_DOLLAR,
+    TRADE_COUNT,
+    *BID_SIZE_L,
+    *ASK_SIZE_L,
+}
 
 
 def _evaluate(feature: BoundFeature, frame: pl.DataFrame) -> pl.Series:
@@ -125,15 +166,24 @@ def test_all_null_input_yields_all_null_output(feature: BoundFeature, series: pl
 @pytest.mark.parametrize("feature", _TS, ids=_TS_IDS)
 def test_windowed_recompute_parity(feature: BoundFeature, series: pl.DataFrame) -> None:
     spec = feature.spec
-    full_last = _evaluate(feature, series).tail(1)
+    full = _evaluate(feature, series)
     if spec.recurrence is Recurrence.FINITE:
         window = series.tail(spec.min_history)
-        rtol, atol = 0.0, DEFAULT_FLOAT_TOLERANCE
-    else:
+        expected = full.tail(1)
+        rtol = 0.0
+    elif spec.recurrence is Recurrence.RECURSIVE_DECAY:
         window = series.tail(spec.effective_warmup)
-        rtol, atol = PARITY_RECURSIVE_TOLERANCE, DEFAULT_FLOAT_TOLERANCE
+        expected = full.tail(1)
+        rtol = PARITY_RECURSIVE_TOLERANCE
+    else:  # PATH_DEPENDENT: no fixed tail reproduces t -- parity is replay-based (8.2): replaying
+        # every bar up to a strict prefix cut must reproduce the full-history value AT that cut,
+        # exactly (an online engine replays the prefix; batch computes the full series).
+        cut = series.height - _REPLAY_TRUNCATION
+        window = series.head(cut)
+        expected = full.slice(cut - 1, 1)
+        rtol = 0.0
     window_last = _evaluate(feature, window).tail(1)
-    assert_series_close(window_last, full_last, rtol=rtol, atol=atol)
+    assert_series_close(window_last, expected, rtol=rtol, atol=DEFAULT_FLOAT_TOLERANCE)
 
 
 @pytest.mark.parametrize("feature", _TS_VALUED, ids=_TS_VALUED_IDS)
@@ -210,6 +260,16 @@ def test_xs_windowed_recompute_parity(feature: BoundFeature, panel: pl.DataFrame
 
 def _sabia_sources() -> list[Path]:
     return list(Path(sabia.__file__).parent.rglob("*.py"))
+
+
+def test_version_matches_pyproject() -> None:
+    # __version__ is hand-pinned in sabia/__init__.py; manifests stamp it as provenance, so a stale
+    # value attests the wrong library version (train == serve depends on it).
+    import tomllib
+
+    pyproject = Path(sabia.__file__).parents[2] / "pyproject.toml"
+    declared = tomllib.loads(pyproject.read_text(encoding="utf-8"))["project"]["version"]
+    assert sabia.__version__ == declared
 
 
 def test_no_sabia_module_imports_pandas() -> None:

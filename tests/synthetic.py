@@ -16,6 +16,11 @@ import polars as pl
 
 from sabia.schema import BarSchema
 from sabia.typing import (
+    ASK_RAW,
+    ASK_SIZE_RAW,
+    BID_RAW,
+    BID_SIZE_RAW,
+    BUY_VOLUME_RAW,
     CLOSE_RAW,
     CLOSE_SPLIT,
     CLOSE_TR,
@@ -23,11 +28,19 @@ from sabia.typing import (
     HIGH_SPLIT,
     LOW_SPLIT,
     MARKET_RET,
+    MID_RAW,
     OPEN_SPLIT,
     OPEN_TR,
+    SELL_VOLUME_RAW,
+    SIGNED_DOLLAR_RAW,
+    SIGNED_VOLUME_RAW,
+    TRADE_COUNT_RAW,
     VOLUME_RAW,
     VOLUME_SPLIT,
     VWAP_SPLIT,
+    Adjustment,
+    DepthRole,
+    QuoteField,
 )
 
 # Physical column names (the canonical timestamp/symbol names plus arbitrary OHLCV names).
@@ -41,6 +54,22 @@ VOLUME = "volume"
 VWAP = "vwap"
 DOLLAR_VOLUME = "dollar_volume"
 MARKET = "market_ret"
+# Intraday microstructure columns (L1 quote + adapter-derived flow aggregates, FEATURES.md 13).
+BID = "bid"
+ASK = "ask"
+MID = "mid"
+BID_SIZE = "bid_size"
+ASK_SIZE = "ask_size"
+SIGNED_VOLUME = "signed_volume"
+BUY_VOLUME = "buy_volume"
+SELL_VOLUME = "sell_volume"
+SIGNED_DOLLAR = "signed_dollar"
+TRADE_COUNT = "trade_count"
+# L2 per-level book depth (DepthRole), so the off-registry ``book_imbalance`` factory runs through
+# the same cross-cutting harness as the registered features (tests/test_invariants.py).
+DEPTH_LEVELS = 2
+BID_SIZE_L = tuple(f"bid_size_l{level}" for level in range(DEPTH_LEVELS))
+ASK_SIZE_L = tuple(f"ask_size_l{level}" for level in range(DEPTH_LEVELS))
 
 # The market factor is common across symbols (it is one series the whole universe shares), so it is
 # generated from a fixed seed independent of the per-symbol OHLCV seed -- identical for every symbol
@@ -63,6 +92,24 @@ SCHEMA = BarSchema(
         VOLUME_RAW: VOLUME,
         DVOL_RAW: DOLLAR_VOLUME,
         MARKET_RET: MARKET,
+        BID_RAW: BID,
+        ASK_RAW: ASK,
+        MID_RAW: MID,
+        BID_SIZE_RAW: BID_SIZE,
+        ASK_SIZE_RAW: ASK_SIZE,
+        SIGNED_VOLUME_RAW: SIGNED_VOLUME,
+        BUY_VOLUME_RAW: BUY_VOLUME,
+        SELL_VOLUME_RAW: SELL_VOLUME,
+        SIGNED_DOLLAR_RAW: SIGNED_DOLLAR,
+        TRADE_COUNT_RAW: TRADE_COUNT,
+        **{
+            DepthRole(QuoteField.BID_SIZE, level, Adjustment.RAW): col
+            for level, col in enumerate(BID_SIZE_L)
+        },
+        **{
+            DepthRole(QuoteField.ASK_SIZE, level, Adjustment.RAW): col
+            for level, col in enumerate(ASK_SIZE_L)
+        },
     }
 )
 
@@ -84,6 +131,22 @@ def _ohlcv_columns(n: int, seed: int) -> dict[str, np.ndarray]:
     low = lo_base * (1.0 - np.abs(rng.normal(0.0, 0.004, n)))
     volume = rng.integers(100_000, 1_000_000, n).astype(np.float64)
     market_ret = np.random.default_rng(_MARKET_SEED).normal(0.0, 0.01, n)
+    # Intraday L1 quote + flow aggregates. Drawn AFTER the OHLCV columns so adding them leaves the
+    # existing series byte-identical (reference tests unaffected). Contract-valid by construction:
+    # half_spread > 0 so bid < ask and both > 0; sizes/counts non-negative; buy+sell == volume so
+    # signed_volume == buy - sell is consistent with the bar's total volume.
+    half_spread = close * 0.0005 * (1.0 + np.abs(rng.normal(0.0, 0.5, n)))
+    bid = close - half_spread
+    ask = close + half_spread
+    bid_size = rng.integers(1, 5_000, n).astype(np.float64)
+    ask_size = rng.integers(1, 5_000, n).astype(np.float64)
+    buy_frac = rng.uniform(0.2, 0.8, n)
+    buy_volume = volume * buy_frac
+    sell_volume = volume - buy_volume
+    trade_count = rng.integers(1, 500, n).astype(np.float64)
+    depth = {
+        col: rng.integers(1, 5_000, n).astype(np.float64) for col in (*BID_SIZE_L, *ASK_SIZE_L)
+    }
     return {
         OPEN: open_,
         HIGH: high,
@@ -93,6 +156,17 @@ def _ohlcv_columns(n: int, seed: int) -> dict[str, np.ndarray]:
         VWAP: (high + low + close) / 3.0,
         DOLLAR_VOLUME: close * volume,
         MARKET: market_ret,
+        BID: bid,
+        ASK: ask,
+        MID: (bid + ask) / 2.0,
+        BID_SIZE: bid_size,
+        ASK_SIZE: ask_size,
+        SIGNED_VOLUME: buy_volume - sell_volume,
+        BUY_VOLUME: buy_volume,
+        SELL_VOLUME: sell_volume,
+        SIGNED_DOLLAR: (buy_volume - sell_volume) * close,
+        TRADE_COUNT: trade_count,
+        **depth,
     }
 
 

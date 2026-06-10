@@ -9,7 +9,7 @@ from collections.abc import Callable
 import polars as pl
 
 from sabia._expr import grouped
-from sabia._math import log_return, safe_div, safe_sqrt
+from sabia._math import bar_return, safe_div, safe_sqrt
 from sabia._validate_params import int_at_least
 from sabia.naming import naming
 from sabia.params import FrozenParams
@@ -23,11 +23,6 @@ _BANDS = (Horizon.SHORT, Horizon.MEDIUM)
 _CLM = Reference("Campbell, Lo & MacKinlay", 1997)
 
 
-def _log_return(s: BarSchema, close: PriceRole) -> pl.Expr:
-    c = pl.col(s.column(close))
-    return log_return(c, c.shift(1))
-
-
 def skew(*, window: int = 21, close: PriceRole = CLOSE_TR) -> BoundFeature:
     """Rolling skewness of log returns over ``window`` bars. FINITE, UNITLESS.
 
@@ -37,7 +32,7 @@ def skew(*, window: int = 21, close: PriceRole = CLOSE_TR) -> BoundFeature:
     name = naming("skew", window)
 
     def build(s: BarSchema) -> pl.Expr:
-        value = _log_return(s, close).rolling_skew(window, min_samples=window).fill_nan(None)
+        value = bar_return(s.column(close)).rolling_skew(window, min_samples=window).fill_nan(None)
         return grouped(value, s.symbol_col).alias(name)
 
     return _finite_dist(build, name, window, (close,), Unit.UNITLESS, _CLM)
@@ -52,7 +47,9 @@ def kurt(*, window: int = 21, close: PriceRole = CLOSE_TR) -> BoundFeature:
     name = naming("kurt", window)
 
     def build(s: BarSchema) -> pl.Expr:
-        value = _log_return(s, close).rolling_kurtosis(window, min_samples=window).fill_nan(None)
+        value = (
+            bar_return(s.column(close)).rolling_kurtosis(window, min_samples=window).fill_nan(None)
+        )
         return grouped(value, s.symbol_col).alias(name)
 
     return _finite_dist(build, name, window, (close,), Unit.UNITLESS, _CLM)
@@ -69,7 +66,7 @@ def downside_dev(*, window: int = 21, close: PriceRole = CLOSE_TR) -> BoundFeatu
     name = naming("downside_dev", window)
 
     def build(s: BarSchema) -> pl.Expr:
-        downside = _log_return(s, close).clip(upper_bound=0.0)
+        downside = bar_return(s.column(close)).clip(upper_bound=0.0)
         variance = (downside**2).rolling_mean(window, min_samples=window)
         return grouped(safe_sqrt(variance), s.symbol_col).alias(name)
 
@@ -94,7 +91,7 @@ def up_down_vol_ratio(*, window: int = 21, close: PriceRole = CLOSE_TR) -> Bound
     name = naming("up_down_vol_ratio", window)
 
     def build(s: BarSchema) -> pl.Expr:
-        r = _log_return(s, close)
+        r = bar_return(s.column(close))
         up = (r.clip(lower_bound=0.0) ** 2).rolling_mean(window, min_samples=window)
         down = (r.clip(upper_bound=0.0) ** 2).rolling_mean(window, min_samples=window)
         value = safe_div(safe_sqrt(up), safe_sqrt(down))

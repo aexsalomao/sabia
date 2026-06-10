@@ -77,8 +77,9 @@ class Recurrence(Enum):
 
     FINITE: bounded window; tail-recompute is exact.
     RECURSIVE_DECAY: decaying memory (Wilder, EWM); exact within tolerance after effective_warmup.
-    PATH_DEPENDENT: resets/triggers (SAR, CUSUM); parity is replay-based -- banned in v1.
-    EXPANDING: unbounded cumulative (raw OBV, A/D) -- banned in v1; ship differenced/bounded.
+    PATH_DEPENDENT: resets/triggers (SAR, CUSUM, VPIN buckets); parity is replay-based -- enabled
+        for the intraday microstructure family (FEATURES.md 13), which needs bucket/event state.
+    EXPANDING: unbounded cumulative (raw OBV, A/D) -- banned; ship differenced/bounded.
     """
 
     FINITE = "finite"
@@ -87,8 +88,13 @@ class Recurrence(Enum):
     EXPANDING = "expanding"
 
 
-# The recurrence classes v1 ships; the registry rejects the rest (FEATURES.md 8.2).
-V1_RECURRENCES: frozenset[Recurrence] = frozenset({Recurrence.FINITE, Recurrence.RECURSIVE_DECAY})
+# The recurrence classes the registry admits; EXPANDING stays rejected (unbounded cumulative state
+# has no windowed-recompute guarantee -- ship a differenced/bounded form instead, FEATURES.md 8.2).
+# PATH_DEPENDENT is admitted for the microstructure family: its parity is replay-based, not
+# fixed-window (FEATURES.md 13).
+ALLOWED_RECURRENCES: frozenset[Recurrence] = frozenset(
+    {Recurrence.FINITE, Recurrence.RECURSIVE_DECAY, Recurrence.PATH_DEPENDENT}
+)
 
 
 class Cost(Enum):
@@ -460,6 +466,7 @@ class BoundFeature:
 
 
 __all__ = [
+    "ALLOWED_RECURRENCES",
     "DEFAULT_FLOAT_TOLERANCE",
     "EWM_WARMUP_TOL",
     "HORIZON_LOOKBACKS",
@@ -467,7 +474,6 @@ __all__ = [
     "PARITY_RECURSIVE_TOLERANCE",
     "REQUIRE_FULL_WINDOW",
     "SKIP_NULLS",
-    "V1_RECURRENCES",
     "Adjustment",
     "BoundFeature",
     "Cost",

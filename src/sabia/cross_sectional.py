@@ -12,7 +12,7 @@ from collections.abc import Callable
 import polars as pl
 
 from sabia._expr import grouped
-from sabia._math import log_return, safe_div, safe_sqrt
+from sabia._math import log_return, rolling_cov, safe_div, safe_sqrt
 from sabia._validate_params import int_at_least, less_than, non_negative_int, positive_int
 from sabia.naming import naming
 from sabia.params import FrozenParams
@@ -191,15 +191,6 @@ _SHARPE = Reference("Sharpe", 1964)
 _AHXZ = Reference("Ang, Hodrick, Xing & Zhang", 2006)
 
 
-def _roll_cov(a: pl.Expr, b: pl.Expr, window: int) -> pl.Expr:
-    # Population covariance of two aligned series over the trailing window: E[ab] - E[a]E[b]. With
-    # a == b this is the variance. min_samples=window emits null until the window is full.
-    mean_ab = (a * b).rolling_mean(window, min_samples=window)
-    mean_a = a.rolling_mean(window, min_samples=window)
-    mean_b = b.rolling_mean(window, min_samples=window)
-    return mean_ab - mean_a * mean_b
-
-
 def beta(
     *, window: int = 252, close: PriceRole = CLOSE_TR, market: FactorRole = MARKET_RET
 ) -> BoundFeature:
@@ -215,7 +206,7 @@ def beta(
         c = pl.col(s.column(close))
         r = log_return(c, c.shift(1))
         m = pl.col(s.column(market))
-        value = safe_div(_roll_cov(r, m, window), _roll_cov(m, m, window))
+        value = safe_div(rolling_cov(r, m, window), rolling_cov(m, m, window))
         return grouped(value, s.symbol_col).alias(name)
 
     return _market_feature(
@@ -244,8 +235,8 @@ def idio_vol(
         c = pl.col(s.column(close))
         r = log_return(c, c.shift(1))
         m = pl.col(s.column(market))
-        cov_rm = _roll_cov(r, m, window)
-        resid_var = _roll_cov(r, r, window) - safe_div(cov_rm * cov_rm, _roll_cov(m, m, window))
+        cov_rm = rolling_cov(r, m, window)
+        resid_var = rolling_cov(r, r, window) - safe_div(cov_rm * cov_rm, rolling_cov(m, m, window))
         return grouped(safe_sqrt(resid_var), s.symbol_col).alias(name)
 
     return _market_feature(

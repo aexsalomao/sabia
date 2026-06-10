@@ -1,6 +1,7 @@
 # Shared expression guards enforcing the no-inf/no-NaN policy (FEATURES.md 3.5): degenerate inputs
 # yield null, never inf or NaN. Used across feature families wherever a divide, log, or sqrt could
-# otherwise escape into downstream math.
+# otherwise escape into downstream math. Also home to the cross-family rolling-moment helpers, so
+# every family computes the same covariance/correlation/slope from one definition.
 
 from __future__ import annotations
 
@@ -32,4 +33,53 @@ def log_return(current: pl.Expr, base: pl.Expr) -> pl.Expr:
     return safe_log(safe_div(current, base))
 
 
-__all__ = ["log_return", "safe_div", "safe_log", "safe_sqrt"]
+def bar_return(column: str) -> pl.Expr:
+    """One-bar log return of the physical ``column`` -- the building block of return moments.
+
+    The shared close-to-close form every family uses (``ln(c_t / c_{t-1})``, null on the seed bar
+    and on degenerate ratios via ``log_return``); call as ``bar_return(schema.column(close))``.
+    """
+    c = pl.col(column)
+    return log_return(c, c.shift(1))
+
+
+def rolling_cov(x: pl.Expr, y: pl.Expr, window: int) -> pl.Expr:
+    """Population covariance of two aligned series over the trailing window: ``E[xy] - E[x]E[y]``.
+
+    With ``x is y`` this is the variance. ``min_samples=window`` emits null until the window is
+    full. The single rolling-moment primitive ``rolling_corr`` / ``rolling_slope`` compose.
+    """
+    mean_xy = (x * y).rolling_mean(window, min_samples=window)
+    mean_x = x.rolling_mean(window, min_samples=window)
+    mean_y = y.rolling_mean(window, min_samples=window)
+    return mean_xy - mean_x * mean_y
+
+
+def rolling_corr(x: pl.Expr, y: pl.Expr, window: int) -> pl.Expr:
+    """Pearson correlation over the window, from population moments: cov / (std_x * std_y).
+
+    A flat window (zero variance in either series) yields null, never inf or NaN.
+    """
+    return safe_div(
+        rolling_cov(x, y, window), safe_sqrt(rolling_cov(x, x, window) * rolling_cov(y, y, window))
+    )
+
+
+def rolling_slope(x: pl.Expr, y: pl.Expr, window: int) -> pl.Expr:
+    """OLS slope of ``y`` on ``x`` over the window, from population moments: cov(x, y) / var(x).
+
+    A flat ``x`` window (zero variance) yields null, never inf.
+    """
+    return safe_div(rolling_cov(x, y, window), rolling_cov(x, x, window))
+
+
+__all__ = [
+    "bar_return",
+    "log_return",
+    "rolling_corr",
+    "rolling_cov",
+    "rolling_slope",
+    "safe_div",
+    "safe_log",
+    "safe_sqrt",
+]

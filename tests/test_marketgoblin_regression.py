@@ -3,8 +3,11 @@
 The panel in ``data/marketgoblin_panel.parquet`` is a committed snapshot of a real multi-symbol
 daily frame fetched via marketgoblin (see ``data/generate_marketgoblin_fixture.py``). These tests
 run fully offline -- no marketgoblin dependency, no network -- and assert the library behaves on
-real prices: the input contract holds, every shipped feature computes without leaking inf/NaN, and
-cross-sectional features come back correctly named (the #1 regression from the code review).
+real prices: the input contract holds, every DAILY-tier shipped feature computes without leaking
+inf/NaN, and cross-sectional features come back correctly named (the #1 regression from the code
+review). The MINUTE-tier microstructure family needs intraday flow/quote columns this daily
+fixture does not carry; its reference and degenerate gates run on synthetic intraday frames
+(``tests/test_microstructure.py``) until a real intraday tape fixture is committed.
 """
 
 from __future__ import annotations
@@ -18,7 +21,7 @@ from synthetic import SCHEMA
 
 import sabia
 from sabia.registry import Registry, evaluate
-from sabia.spec import DEFAULT_FLOAT_TOLERANCE
+from sabia.spec import DEFAULT_FLOAT_TOLERANCE, DataTier
 
 _FIXTURE = Path(__file__).parent / "data" / "marketgoblin_panel.parquet"
 _FLOAT_DTYPES = (pl.Float32, pl.Float64)
@@ -26,7 +29,10 @@ _FLOAT_DTYPES = (pl.Float32, pl.Float64)
 PANEL = pl.read_parquet(_FIXTURE)
 SYMBOLS = sorted(PANEL.get_column("symbol").unique().to_list())
 
-_REGISTRY = Registry.default()
+# The fixture is a real DAILY panel; microstructure features are MINUTE/TICK-tier and need intraday
+# flow/quote columns it does not carry, so scope the regression to daily-computable features (the
+# data_tier contract, FEATURES.md 6).
+_REGISTRY = Registry.default().available(DataTier.DAILY)
 _FEATURES = _REGISTRY.features()
 _IDS = [f.spec.name for f in _FEATURES]
 
